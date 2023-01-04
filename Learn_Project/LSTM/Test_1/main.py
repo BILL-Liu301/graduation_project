@@ -74,6 +74,7 @@ if __name__ == '__main__':
     ROWS = 1
     LR = 1e-2
     LOSS = 1e-5
+    max_epochs = 1
 
     filepath = 'out.txt'
     txt_data = read_txt(filepath)
@@ -129,7 +130,6 @@ if __name__ == '__main__':
     loss_function = nn.MSELoss()
     optimizer = torch.optim.Adam(lstm_model.parameters(), lr=LR)
 
-    max_epochs = 500000
     for epoch in range(max_epochs):
         output = lstm_model(train_original_tensor)
         loss = loss_function(output, train_predict_tensor)
