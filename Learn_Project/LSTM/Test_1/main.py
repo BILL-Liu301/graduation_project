@@ -74,7 +74,7 @@ if __name__ == '__main__':
     ROWS = 1
     LR = 1e-2
     LOSS = 1e-5
-    max_epochs = 1
+    MAX_EPOCHS = 1
 
     filepath = 'out.txt'
     txt_data = read_txt(filepath)
@@ -130,7 +130,7 @@ if __name__ == '__main__':
     loss_function = nn.MSELoss()
     optimizer = torch.optim.Adam(lstm_model.parameters(), lr=LR)
 
-    for epoch in range(max_epochs):
+    for epoch in range(MAX_EPOCHS):
         output = lstm_model(train_original_tensor)
         loss = loss_function(output, train_predict_tensor)
 
@@ -140,11 +140,11 @@ if __name__ == '__main__':
 
         if loss.item() < LOSS:
             print('----------------------------')
-            print('Epoch: [{}/{}], Loss: {:.5f}'.format(epoch + 1, max_epochs, loss.item()))
+            print('Epoch: [{}/{}], Loss: {:.5f}'.format(epoch + 1, MAX_EPOCHS, loss.item()))
             print("The loss value is reached")
             break
         elif (epoch + 1) % 100 == 0:
-            print('Epoch: [{}/{}], Loss: {:.5f}'.format(epoch + 1, max_epochs, loss.item()))
+            print('Epoch: [{}/{}], Loss: {:.5f}'.format(epoch + 1, MAX_EPOCHS, loss.item()))
 
     # prediction on training dataset
     predictive_y_for_training = lstm_model(train_original_tensor)
