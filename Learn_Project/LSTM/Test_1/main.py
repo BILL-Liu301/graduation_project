@@ -1,11 +1,15 @@
 # 基于网上LSTM的代码进行改进
-import sys
 
 # -*- coding:UTF-8 -*-
+
+import sys
+import shutil
+import os
 import numpy as np
 import torch
 from torch import nn
 import matplotlib.pyplot as plt
+from torch.utils.tensorboard import SummaryWriter
 
 
 # Define LSTM Neural Networks
@@ -21,16 +25,19 @@ class LstmRNN(nn.Module):
     def __init__(self, input_size, hidden_size=1, output_size=1, num_layers=1):
         super().__init__()
 
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers)  # utilize the LSTM model in torch.nn
-        self.forwardCalculation = nn.Linear(hidden_size, output_size)
+        self.lstm = nn.LSTM(input_size=input_size, hidden_size=hidden_size, num_layers=num_layers)  # utilize the LSTM model in torch.nn
+        self.l1 = nn.Linear(hidden_size, output_size)
+        # self.forwardCalculation = nn.Linear(hidden_size, output_size)
 
-    def forward(self, _x):
-        x, _ = self.lstm(_x)  # _x is input, size (seq_len, batch, input_size)
-        s, b, h = x.shape  # x is output, size (seq_len, batch, hidden_size)
-        x = x.view(s * b, h)
-        x = self.forwardCalculation(x)
-        x = x.view(s, b, -1)
-        return x
+    def forward(self, x):
+        out, _ = self.lstm(x)
+        out = self.l1(out)
+        # x, _ = self.lstm(x)  # _x is input, size (seq_len, batch, input_size)
+        # s, b, h = x.shape  # x is output, size (seq_len, batch, hidden_size)
+        # x = x.view(s * b, h)
+        # x = self.forwardCalculation(x)
+        # x = x.view(s, b, -1)
+        return out
 
 
 # 读取txt文件，由于txt在存储的时候顺序为stamp、acc、position、velocity，所以需要在此处调整
@@ -55,7 +62,7 @@ def read_txt(filename):
 def reshape_original_data(origin, rows, input_feature_num, output_feature_num):
     reshaped = origin
     if len(origin) % (rows * (input_feature_num + output_feature_num)) != 0.0:
-        print("Reshape Fill")
+        print("Reshape Filled")
         sys.exit(0)
     len_reshaped = len(origin) - (input_feature_num + output_feature_num) + 1
     reshaped = np.zeros((len_reshaped, rows, input_feature_num))
@@ -70,11 +77,16 @@ if __name__ == '__main__':
 
     INPUT_FEATURES_NUM = 9
     OUTPUT_FEATURES_NUM = 1
+    HIDDEN_SIZE = 16
     NUM_LAYER = 2
     ROWS = 1
     LR = 1e-2
-    LOSS = 1e-5
-    MAX_EPOCHS = 1
+    LOSS = 1e-3
+    MAX_EPOCHS = 1000
+    if os.path.exists('run/01'):
+        print('deleting...')
+        shutil.rmtree('run/01')
+    writer = SummaryWriter('run/01')
 
     filepath = 'out.txt'
     txt_data = read_txt(filepath)
@@ -123,9 +135,11 @@ if __name__ == '__main__':
     test_original_tensor = torch.from_numpy(test_original_tensor).to(torch.float32)
     test_predict_tensor = torch.from_numpy(test_predict_tensor).to(torch.float32)
 
-    lstm_model = LstmRNN(INPUT_FEATURES_NUM, 16, output_size=OUTPUT_FEATURES_NUM, num_layers=NUM_LAYER)
-    print('LSTM model:', lstm_model)
-    print('model.parameters:', lstm_model.parameters)
+    lstm_model = LstmRNN(INPUT_FEATURES_NUM, HIDDEN_SIZE, OUTPUT_FEATURES_NUM, NUM_LAYER)
+    print(train_original_tensor.size())
+    writer.add_graph(lstm_model, train_original_tensor)
+    writer.close()
+    # sys.exit()
 
     loss_function = nn.MSELoss()
     optimizer = torch.optim.Adam(lstm_model.parameters(), lr=LR)
@@ -143,9 +157,11 @@ if __name__ == '__main__':
             print('Epoch: [{}/{}], Loss: {:.5f}'.format(epoch + 1, MAX_EPOCHS, loss.item()))
             print("The loss value is reached")
             break
-        elif (epoch + 1) % 100 == 0:
+        elif (epoch + 1) % 10 == 0:
             print('Epoch: [{}/{}], Loss: {:.5f}'.format(epoch + 1, MAX_EPOCHS, loss.item()))
-
+            writer.add_scalar('loss:', loss.item(), epoch)
+            writer.close()
+    # sys.exit()
     # prediction on training dataset
     predictive_y_for_training = lstm_model(train_original_tensor)
     predictive_y_for_training = predictive_y_for_training.view(-1, OUTPUT_FEATURES_NUM).data.numpy()
@@ -163,7 +179,7 @@ if __name__ == '__main__':
     # ----------------- plot -------------------
     plt.figure()
     # plt.plot(t_for_training, train_original, 'g', label='original_trn')
-    # plt.plot(t_for_training, train_predict, 'b', label='ref_predict_trn')
+    # plt.plot(t_for_taccuracyraining, train_predict, 'b', label='ref_predict_trn')
     # plt.plot(t_for_training, predictive_y_for_training, 'y--', label='pre_predict_trn')
     #
     # plt.plot(t_for_testing, test_original, 'c', label='original_tst')
