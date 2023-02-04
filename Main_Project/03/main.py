@@ -73,6 +73,9 @@ for epoch in range(num_epochs):
 
     if (epoch + 1) % show_epoch == 0:
         print(f'epoch: {epoch + 1}/{num_epochs}, loss: {loss.item():.4f}')
+    if loss < 1e-4:
+        print(f'epoch: {epoch + 1}/{num_epochs}, loss: {loss.item():.5f}')
+        break
 t_end = time.time()
 print(f'训练时长为{t_end - t_start}s')
 
@@ -80,7 +83,7 @@ print(f'训练时长为{t_end - t_start}s')
 path = "model_lstm.pth"
 torch.save(model_lstm, path)
 
-# # 加载模型
+# 加载模型
 # model_lstm = torch.load(path)
 # model_lstm.eval()
 
@@ -110,7 +113,7 @@ with torch.no_grad():
     out_all = np.append(out_training, out_testing)
     dis_all = np.append(dis_training, dis_testing)
     # 显示原始数据
-    print(f'误差最大值为:{dis_all.max()}米')
+    print(f'误差最大值为:{abs(dis_all).max()}米')
     plt.figure()
     plt.plot(data[:, 0], data[:, 3], 'r', label='velocity')
     plt.plot(data[:, 0], data[:, 2], 'b', label='position')

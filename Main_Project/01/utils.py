@@ -71,6 +71,3 @@ np.savetxt('testing_data_input.txt', testing_data_input, fmt='%f')
 np.savetxt('testing_data_output.txt', testing_data_output, fmt='%f')
 
 
-
-
-
