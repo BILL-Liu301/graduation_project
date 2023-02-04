@@ -12,13 +12,13 @@ print(f'本次程序运行的设备环境为{device}')
 
 input_size = 1
 num_layers = 2
-hidden_size = 128
+hidden_size = 256
 output_size = 1
 batch_size = 35
-sequence_length = 9
-learning_rate = 1e-2
-num_epochs = 10000
-show_epoch = 100
+sequence_length = 18
+learning_rate = 1e-4
+num_epochs = 50000
+show_epoch = 500
 
 
 class LSTM(nn.Module):
@@ -76,6 +76,7 @@ for epoch in range(num_epochs):
 t_end = time.time()
 print(f'训练时长为{t_end - t_start}s')
 
+# 保存模型
 path = "model_lstm,pth"
 torch.save(model_lstm, path)
 
@@ -111,7 +112,8 @@ with torch.no_grad():
     # 显示原始数据
     print(f'误差最大值为:{dis_all.max()}米')
     plt.figure()
-    plt.plot(data[:, 0], data[:, 2], 'b', label='input')
+    plt.plot(data[:, 0], data[:, 3], 'r', label='velocity')
+    plt.plot(data[:, 0], data[:, 2], 'b', label='position')
     plt.plot(data[:, 0], out_all[:], '*', label='output')
     plt.plot(data[:, 0], dis_all[:] * 10, 'g', label='dis*10')
     plt.legend(loc='upper right')

@@ -80,6 +80,13 @@ for epoch in range(num_epochs):
 t_end = time.time()
 print(f'训练时长为{t_end - t_start}s')
 
+path = "model_lstm,pth"
+torch.save(model_lstm, path)
+
+# # 加载模型
+# model_lstm = torch.load(path)
+# model_lstm.eval()
+
 
 # 拓展点
 def expend(source, num):
