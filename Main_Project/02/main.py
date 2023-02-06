@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from utils import training_data_input, training_data_output, testing_data_input, testing_data_output, data
+from utils import training_data_input, training_data_output, testing_data_input, testing_data_output, data, training_len
 import numpy as np
 import matplotlib.pyplot as plt
 import time
@@ -65,37 +65,37 @@ print(f'training_data_output: {training_data_output.shape}')
 print(f'testing_data_input: {testing_data_input.shape}')
 print(f'testing_data_output: {testing_data_output.shape}')
 
-# 训练模型
-t_start = time.time()
-for epoch in range(num_epochs):
-    output = model_lstm(training_data_input)
-    loss = criterion(output, training_data_output)
-
-    if (epoch + 1) == int(num_epochs / 2):
-        learning_rate = learning_rate / 10
-        print(f'Change the learning_rate in {learning_rate} at epoch {epoch + 1}')
-        optimizer = torch.optim.Adam(model_lstm.parameters(), lr=learning_rate)
-
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
-
-    if (epoch + 1) % show_epoch == 0:
-        print(f'epoch: {epoch + 1}/{num_epochs}, loss: {loss.item():.4f}', end="\r", flush=True)
-    if (loss < 1e-4) | ((epoch + 1) == num_epochs):
-        print(f'epoch: {epoch + 1}/{num_epochs}, loss: {loss.item():.5f}')
-        break
-
-t_end = time.time()
-print(f'训练时长为{t_end - t_start}s')
+# # 训练模型
+# t_start = time.time()
+# for epoch in range(num_epochs):
+#     output = model_lstm(training_data_input)
+#     loss = criterion(output, training_data_output)
+#
+#     if (epoch + 1) == int(num_epochs / 2):
+#         learning_rate = learning_rate / 10
+#         print(f'Change the learning_rate in {learning_rate} at epoch {epoch + 1}')
+#         optimizer = torch.optim.Adam(model_lstm.parameters(), lr=learning_rate)
+#
+#     optimizer.zero_grad()
+#     loss.backward()
+#     optimizer.step()
+#
+#     if (epoch + 1) % show_epoch == 0:
+#         print(f'epoch: {epoch + 1}/{num_epochs}, loss: {loss.item():.4f}', end="\r", flush=True)
+#     if (loss < 1e-4) | ((epoch + 1) == num_epochs):
+#         print(f'epoch: {epoch + 1}/{num_epochs}, loss: {loss.item():.5f}')
+#         break
+#
+# t_end = time.time()
+# print(f'训练时长为{t_end - t_start}s')
 
 # # 保存模型
-# path = "model_lstm.pth"
+path = "model_lstm.pth"
 # torch.save(model_lstm, path)
 
 # # 加载模型
-# model_lstm = torch.load(path)
-# model_lstm.eval()
+model_lstm = torch.load(path)
+model_lstm.eval()
 
 
 # 拓展点
@@ -129,5 +129,6 @@ with torch.no_grad():
     plt.plot(data[:, 0], data[:, 2], 'b', label='input')
     plt.plot(data[:, 0], out_all[:], '*', label='output')
     plt.plot(data[:, 0], dis_all[:] * 10, 'g', label='dis*10')
+    plt.plot([data[training_len, 0], data[training_len, 0]], [-8, 6], 'r--', label='separation')
     plt.legend(loc='upper right')
     plt.show()

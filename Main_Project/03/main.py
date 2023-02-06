@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from utils import training_data_input, training_data_output, testing_data_input, testing_data_output, data
+from utils import training_data_input, training_data_output, testing_data_input, testing_data_output, data, training_len
 import numpy as np
 import matplotlib.pyplot as plt
 import time
@@ -11,13 +11,13 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f'本次程序运行的设备环境为{device}')
 
 input_size = 1
-num_layers = 2
+num_layers = 4
 hidden_size = 256
 output_size = 1
 batch_size = 35
 sequence_length = 18
-learning_rate = 1e-4
-num_epochs = 50000
+learning_rate = 1e-3
+num_epochs = 100000
 show_epoch = 500
 
 
@@ -66,6 +66,11 @@ t_start = time.time()
 for epoch in range(num_epochs):
     output = model_lstm(training_data_input)
     loss = criterion(output, training_data_output)
+
+    if (epoch + 1) == int(num_epochs / 2):
+        learning_rate = learning_rate / 10
+        print(f'Change the learning_rate in {learning_rate} at epoch {epoch + 1}')
+        optimizer = torch.optim.Adam(model_lstm.parameters(), lr=learning_rate)
 
     optimizer.zero_grad()
     loss.backward()
@@ -119,5 +124,6 @@ with torch.no_grad():
     plt.plot(data[:, 0], data[:, 2], 'b', label='position')
     plt.plot(data[:, 0], out_all[:], '*', label='output')
     plt.plot(data[:, 0], dis_all[:] * 10, 'g', label='dis*10')
+    plt.plot([data[training_len, 0], data[training_len, 0]], [-8, 6], 'r--', label='separation')
     plt.legend(loc='upper right')
     plt.show()
