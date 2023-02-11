@@ -140,7 +140,7 @@ with torch.no_grad():
     out_training = model_lstm(training_data_input)
     dis_training = (out_training - training_data_output).cpu()
     # 检测检测集
-    out_testing = test_model(testing_data_input, 350)
+    out_testing = test_model(testing_data_input, 18000)
     dis_testing = np.zeros(len(out_testing))
     temp_flag = 0
     temp_nonzero = np.nonzero(out_testing)[0]

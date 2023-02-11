@@ -7,14 +7,12 @@ import time
 
 # 设置运行设备的环境为GPU
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# device = torch.device('cpu')
-print(f'本次程序运行的设备环境为{device}')
+print(f'本次程序运行的设备环境为{device}，{torch.cuda.get_device_name(device)}')
 
 input_size = 1
-num_layers = 4
-hidden_size = 512
+num_layers = 2
+hidden_size = 64
 output_size = 1
-batch_size = 35
 sequence_length = 9
 learning_rate = 1e-3
 num_epochs = 100000
@@ -49,7 +47,7 @@ class LSTM(nn.Module):
 model_lstm = LSTM(input_size, hidden_size, num_layers, output_size, sequence_length).to(device)
 criterion = nn.L1Loss()
 optimizer = torch.optim.Adadelta(model_lstm.parameters(), lr=learning_rate)
-print(model_lstm.parameters)
+print(model_lstm)
 
 # 显示数据，并转换格式
 training_data_input = torch.from_numpy(training_data_input).to(torch.float32)
@@ -65,7 +63,7 @@ print(f'training_data_output: {training_data_output.shape}')
 print(f'testing_data_input: {testing_data_input.shape}')
 print(f'testing_data_output: {testing_data_output.shape}')
 
-# # 训练模型
+# 训练模型
 # t_start = time.time()
 # for epoch in range(num_epochs):
 #     output = model_lstm(training_data_input)
@@ -123,6 +121,7 @@ with torch.no_grad():
     plt.plot(data[:, 0], data[:, 2], 'b', label='input')
     plt.plot(data[:, 0], out_all[:], '*', label='output')
     plt.plot(data[:, 0], dis_all[:] * 10, 'g', label='dis*10')
-    plt.plot([data[training_len, 0], data[training_len, 0]], [-8, 6], 'r--', label='separation')
+    plt.plot([data[training_len, 0], data[training_len, 0]], [-400, 100], 'r--', label='separation')
+    plt.plot([0, len(out_all)], [max(out_training), max(out_training)], 'r--', label='Max')
     plt.legend(loc='upper right')
     plt.show()

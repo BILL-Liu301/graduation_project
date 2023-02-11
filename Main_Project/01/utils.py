@@ -23,7 +23,7 @@ file_data_lines = file_data.readlines()
 data = np.zeros((len(file_data_lines), 4))
 temp = 0
 for row in file_data_lines:
-    find_data = row.split('\t')
+    find_data = row.split(' ')
     data[temp, 0] = float(find_data[0])
     data[temp, 1] = float(find_data[1])
     data[temp, 2] = float(find_data[2])
