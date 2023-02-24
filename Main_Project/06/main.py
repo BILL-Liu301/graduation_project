@@ -22,9 +22,10 @@ hidden_size = 32
 output_size = 1
 sequence_length = 9
 learning_rate = 2
+end_loss = 1e-5
 num_epochs = 50000000
 show_epoch = 500
-basic_var = 1
+basic_var = 10
 cur_var = 0.0
 add_change_ls = 0
 history_loss = np.zeros((20, 1))
@@ -99,7 +100,7 @@ def print_process(num):
 
 # 更改学习率和优化器
 def lr_optim(epoch, basic_var, cur_loss, lr, optim, add_change_ls):
-    if cur_loss <= 1e-1:
+    if cur_loss <= (end_loss * 10):
         print("loss足够小，不再更改lr和optim")
         return lr, optim, 0.0, 0
 
@@ -114,16 +115,16 @@ def lr_optim(epoch, basic_var, cur_loss, lr, optim, add_change_ls):
     loss_var = history_loss.var()
     if loss_var <= basic_var:
         # 数据出现震荡，减小学习率，使其收敛下来
-        print(f'方差为{loss_var:.8f}<{basic_var}，可能处于震荡状态，当前学习率为{lr:.9f}')
+        print(f'方差为{loss_var:.15f}<{basic_var}，可能处于震荡状态，当前学习率为{lr:.15f}')
         if add_change_ls >= 100:
             print(f'当前方差过小累计次数为{add_change_ls}，现重头开始累加')
             add_change_ls = 0
         add_change_ls = add_change_ls + 1
         print(f'已检测到方差过小的次数为{add_change_ls}')
-        lr = lr - 0.1 * (5 * cur_loss / 70) * lr - 0.00001 * add_change_ls
+        lr = lr - 0.001 * (cur_loss / 50) * lr - 0.00001 * add_change_ls
         if lr <= 0:
             lr = 0.001
-        print(f'在第{epoch + 1}个epoch将学习率改为{lr:.9f}')
+        print(f'在第{epoch + 1}个epoch将学习率改为{lr:.15f}')
         print()
         optim = torch.optim.Adadelta(model_lstm.parameters(), lr=lr)
     else:
@@ -137,9 +138,9 @@ if training_or_testing == 0:
     t_start = time.time()
     for epoch in range(num_epochs):
         output = model_lstm(training_data_input)
-        loss = criterion(output, training_data_output)
+        loss = criterion(output, training_data_output) * training_data_input.shape[0]
 
-        if (epoch + 1) % 10 == 0:
+        if (epoch + 1) % 100 == 0:
             tensorboard_writer.add_scalar('training_loss', loss.item(), epoch)
             tensorboard_writer.add_scalar('training_lr', learning_rate, epoch)
             tensorboard_writer.add_scalar('training_var', cur_var, epoch)
@@ -153,12 +154,12 @@ if training_or_testing == 0:
         if (epoch + 1) % show_epoch == 0:
             # print(f'epoch: {epoch + 1}/{num_epochs}, loss: {loss.item():.4f}', end="\r", flush=True)
             print(f'epoch: {epoch + 1}/{num_epochs}, loss: {loss.item():.4f}')
-            if loss.item() <= 1:
+            if loss.item() <= 1e-3:
                 temp_path = "models/" + str(epoch + 1) + "_" + "{:.4f}".format(loss.item()) + ".pth"
                 torch.save(model_lstm, temp_path)
                 print(f"已将模型文件保存为{temp_path}")
             print("---------------------------------------------------------")
-        if (loss < 1) | ((epoch + 1) == num_epochs):
+        if (loss < end_loss) | ((epoch + 1) == num_epochs):
             print(f'epoch: {epoch + 1}/{num_epochs}, loss: {loss.item():.5f}')
             break
         # print_process(epoch + 1)
