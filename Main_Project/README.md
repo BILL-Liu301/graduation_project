@@ -37,3 +37,10 @@
 ## 输入：[x0, x1-x0, x2-x0, x3-x0, ......, x8-x0] -> [0, x1-x0, x2-x0, x3-x0, ......, x8-x0]
 ## 输出：[x9]
 ## lr和optim调整方式：k
+
+---
+# 07
+## 参考了论文Sequence-to-Sequence_Prediction_of_Vehicle_Trajectory_via_LSTM_Encoder-Decoder_Architecture
+## 只对环境中的某一辆车做二维预测
+## ![](07/Screenshot from 2023-03-10 09-40-51.png)
+## 15 预测 5

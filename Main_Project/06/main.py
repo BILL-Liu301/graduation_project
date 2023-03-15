@@ -73,8 +73,8 @@ training_data_output = torch.from_numpy(training_data_output).to(torch.float32).
 testing_data_input = torch.from_numpy(testing_data_input).to(torch.float32)
 testing_data_output = torch.from_numpy(testing_data_output).to(torch.float32).to(device)
 
-training_data_input = training_data_input.reshape(-1, sequence_length, input_size).to(device)
-testing_data_input = testing_data_input.reshape(-1, sequence_length, input_size).to(device)
+# training_data_input = training_data_input.reshape(-1, sequence_length, input_size).to(device)
+# testing_data_input = testing_data_input.reshape(-1, sequence_length, input_size).to(device)
 
 print(f'training_data_input: {training_data_input.shape}')
 print(f'training_data_output: {training_data_output.shape}')
@@ -218,12 +218,12 @@ with torch.no_grad():
     out_testing = expend(out_testing, 10)
     dis_testing = expend(dis_testing, 10)
     out_all = np.append(out_training, out_testing)
-    dis_all = np.append(dis_training, dis_testing) * 10.0
+    dis_all = np.append(dis_training, dis_testing) * 100.0
     # 显示原始数据
     plt.figure()
-    plt.plot(data[:, 0], data[:, 2], '.', 'b', label='input')
+    plt.plot(data[:, 0], data[:, 2], 'b', label='input')
     plt.plot(data[:, 0], out_all[:], '*', label='output')
-    plt.plot(data[:, 0], dis_all[:], 'g', label='dis * 10')
+    plt.plot(data[:, 0], dis_all[:], 'g', label='dis * 100')
     plt.plot([data[training_len, 0], data[training_len, 0]], [-400, 100], 'r--', label='separation')
     plt.plot([0, len(out_all)], [max(out_training), max(out_training)], 'r--', label='Max')
     plt.legend(loc='upper right')
