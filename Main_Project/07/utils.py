@@ -20,9 +20,9 @@ for row in file_data_lines:
 # data = np.array(data.reshape(-1, 20, 5))
 # print(data.shape)
 
-sequence_length = 50
+sequence_length = 20
 hidden_length = 5
-# 滑窗重组
+# # 滑窗重组
 # data_reshape = np.array([[0, 0.0, 0.0, 0.0, 0.0]])
 # for i in range(data.shape[0] - sequence_length):
 #     for j in range(sequence_length):
@@ -41,9 +41,9 @@ dis = np.zeros(data_reshape.shape[0])
 print(data_reshape.shape)
 
 # plt.figure()
-for i in range(dis.shape[0]):
-    dis[i] = math.sqrt(
-        (data_reshape[i, 0, 1] - data_reshape[i, -1, 1]) ** 2 + (data_reshape[i, 0, 2] - data_reshape[i, -1, 2]) ** 2)
+# for i in range(dis.shape[0]):
+#     dis[i] = math.sqrt(
+#         (data_reshape[i, 0, 1] - data_reshape[i, -1, 1]) ** 2 + (data_reshape[i, 0, 2] - data_reshape[i, -1, 2]) ** 2)
     # plt.clf()
     # plt.plot(data_reshape[i, :, 1], data_reshape[i, :, 2], "*", label='trajectory')
     # # plt.plot(data_reshape[i, :, 1], data_reshape[i, :, 3], label='Vx')
@@ -51,7 +51,7 @@ for i in range(dis.shape[0]):
     # plt.legend(loc='upper right')
     # plt.pause(0.001)
     # print(f"{dis[i]:.4f}")
-print(dis.max())
+# print(dis.max())
 
 rate = 0.5
 training_data_input = np.array(data_reshape[0:int(data_reshape.shape[0] * rate), :, :])
@@ -77,10 +77,10 @@ for i in range(testing_data_output.shape[0]):
     testing_data_input[i, :, 2] = testing_data_input[i, :, 2] - testing_data_input[i, 0, 2]
 
 # 栅格化,观测车辆在最初点的左下（5m，5m）的位置，车辆原点在Qw*Ql这个矩形的最下边中心
-Qw = 40
-Ql = 90
-start_x = 45
-start_y = 25
+Qw = 30
+Ql = 40
+start_x = 22
+start_y = 15
 grid_w = 0.1  # y
 grid_l = 0.1  # x
 print(f"Qw * Ql = {Qw * grid_w * Ql * grid_l}m^2")
@@ -105,15 +105,15 @@ testing_data_input[:, :, 2] = testing_data_input[:, :, 2] + start_y
 testing_data_output[:, :, 1] = testing_data_output[:, :, 1] + start_x
 testing_data_output[:, :, 2] = testing_data_output[:, :, 2] + start_y
 
-print(training_data_input[:, :, 1].min(), training_data_input[:, :, 2].min())
-print(training_data_output[:, :, 1].min(), training_data_output[:, :, 2].min())
-print(testing_data_input[:, :, 1].min(), testing_data_input[:, :, 2].min())
-print(testing_data_output[:, :, 1].min(), testing_data_output[:, :, 2].min())
-
-print(training_data_input[:, :, 1].max(), training_data_input[:, :, 2].max())
-print(training_data_output[:, :, 1].max(), training_data_output[:, :, 2].max())
-print(testing_data_input[:, :, 1].max(), testing_data_input[:, :, 2].max())
-print(testing_data_output[:, :, 1].max(), testing_data_output[:, :, 2].max())
+# print(training_data_input[:, :, 1].min(), training_data_input[:, :, 2].min())
+# print(training_data_output[:, :, 1].min(), training_data_output[:, :, 2].min())
+# print(testing_data_input[:, :, 1].min(), testing_data_input[:, :, 2].min())
+# print(testing_data_output[:, :, 1].min(), testing_data_output[:, :, 2].min())
+#
+# print(training_data_input[:, :, 1].max(), training_data_input[:, :, 2].max())
+# print(training_data_output[:, :, 1].max(), training_data_output[:, :, 2].max())
+# print(testing_data_input[:, :, 1].max(), testing_data_input[:, :, 2].max())
+# print(testing_data_output[:, :, 1].max(), testing_data_output[:, :, 2].max())
 
 
 # plt.figure()

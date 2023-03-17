@@ -1,3 +1,5 @@
+import math
+
 from utils import training_data_input, training_data_output, testing_data_input, testing_data_output, Qw, Ql
 import numpy as np
 import torch
@@ -13,13 +15,14 @@ print(f'本次程序运行的设备环境为{device}，{torch.cuda.get_device_na
 # print(f'本次程序运行的设备环境为{device}')
 
 # 可调参数
+size_basic = 256
 size_encoder_input = 5
-size_encoder_hidden_fc = 256
-size_encoder_hidden_lstm = 256
-size_encoder_output_lstm = 256
-size_decoder_input = 256
-size_decoder_hidden_lstm = 256
-size_decoder_hidden_fc = 256
+size_encoder_hidden_fc = size_basic
+size_encoder_hidden_lstm = size_basic
+size_encoder_output_lstm = size_basic
+size_decoder_input = size_basic
+size_decoder_hidden_lstm = size_basic
+size_decoder_hidden_fc = size_basic
 size_decoder_output_fc = Ql * Qw
 size_K = 4
 size_delta = training_data_output.shape[1]
@@ -55,6 +58,7 @@ class Encoder(nn.Module):
         out = self.fc3(out)
         out, (h1, c1) = self.lstm1(out, (h0, c0))
         out, (h2, c2) = self.lstm2(out, (h0, c0))
+        out = out[:, -1, :].reshape([out.shape[0], 1, out.shape[2]])
 
         return out, (h1, c1), (h2, c2)
 
@@ -77,35 +81,60 @@ class Decoder(nn.Module):
         self.delta = delta
 
     def find_w(self, index):
-        return index // self.Ql
+        return (index / self.Ql).floor()
 
     def find_l(self, index):
         return index % self.Ql
 
     def beam_search(self, x):
-        index = x.argsort()[-self.K:]
-        index_w = np.zeros([self.K, self.Qw])
-        index_l = np.zeros([self.K, self.Ql])
+        _, index = torch.sort(x[:, 0, :], descending=True)
+        index = index[:, 0:self.K]
+        # index_w = torch.from_numpy(np.zeros([x.shape[0], self.K, self.Qw])).to(torch.float32).to(device)
+        # index_l = torch.from_numpy(np.zeros([x.shape[0], self.K, self.Ql])).to(torch.float32).to(device)
+        index_w = torch.zeros([x.shape[0], self.K, self.Qw])
+        index_l = torch.zeros([x.shape[0], self.K, self.Ql])
         for i in range(self.K):
-            index_w[i, self.find_w(index[i])] = 1
-            index_l[i, self.find_l(index[i])] = 1
+            fw = self.find_w(index[:, i])
+            fl = self.find_l(index[:, i])
+            for j in range(index.shape[0]):
+                index_w[j, i, int(fw[j])] = 1
+                index_l[j, i, int(fl[j])] = 1
         return index_w, index_l
 
     def embedding(self, index_w, index_l):
         return torch.cat([index_w, index_l], 1)
 
-    def forward(self, x, h1, c1, h2, c2):
+    def once(self, x, h1, c1, h2, c2):
+        x, (h1, c1) = self.lstm1(x, (h1, c1))
+        x, (h2, c2) = self.lstm2(x, (h2, c2))
+        x = self.fc1(x)
+        x = self.fc2(x)
+        x = self.fc3(x)
+        # x = self.softmax(x)
+        return x, h1, c1, h2, c2
+
+    def forward(self,x, h1, c1, h2, c2):
+        # embedded = torch.tensor([x.shape[0], self.K, x.shape[2]])
+        x, h1, c1, h2, c2 = self.once(x, h1, c1, h2, c2)
+        index_w, index_l = self.beam_search(x)
+        index_w = self.fc_qw(index_w.to(device))
+        index_l = self.fc_ql(index_l.to(device))
+        trajectory_points = torch.zeros([x.shape[0], self.delta, self.K, 2])
+        lstm_init = torch.zeros([self.K, 4, h1.shape[0], h1.shape[1], h1.shape[2]])
+        for i in range(self.K):
+            lstm_init[i, 0] = h1
+            lstm_init[i, 1] = c1
+            lstm_init[i, 2] = h2
+            lstm_init[i, 3] = c2
+        lstm_init.to(device)
+        print(index_w.shape, index_l.shape)
+        
         for i in range(self.delta):
-            x, _ = self.lstm1(x, (h1, c1))
-            x, _ = self.lstm2(x, (h2, c2))
-            x = self.fc1(x)
-            x = self.fc2(x)
-            x = self.fc3(x)
-            x = self.softmax(x)
-            index_w, index_l = self.beam_search(out)
-            index_w = self.fc_qw(index_w)
-            index_l = self.fc_ql(index_l)
-            x = self.embedding(index_w, index_l)
+            for j in range(self.K):
+                embedded = self.embedding(index_w[:, j, :], index_l[:, j, :]).unsqueeze(1).to(device)
+                embedded, _, _, _, _ = self.once(embedded,
+                                                 lstm_init[j, 0], lstm_init[j, 1], lstm_init[j, 2], lstm_init[j, 3])
+                print()
         return x
 
 
@@ -115,7 +144,9 @@ encoder = Encoder(size_encoder_input, size_encoder_hidden_fc, size_encoder_hidde
 decoder = Decoder(size_decoder_input, size_decoder_hidden_fc, size_decoder_hidden_lstm, size_decoder_output_fc,
                   size_K, Qw, Ql, size_delta).to(device)
 
+print(encoder, decoder)
+
 out, (h1, c1), (h2, c2) = encoder(training_data_input)
 print(out.shape)
-out = decoder(out, h1, c1, h2, c2)
+out = decoder.forward(out, h1, c1, h2, c2)
 print(out.shape)
