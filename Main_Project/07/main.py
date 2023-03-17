@@ -3,6 +3,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+# 清空缓存
+torch.cuda.empty_cache()
+
 # 设置运行设备的环境为GPU
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print(f'本次程序运行的设备环境为{device}，{torch.cuda.get_device_name(device)}')
