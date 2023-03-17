@@ -86,20 +86,24 @@ class Decoder(nn.Module):
     def find_l(self, index):
         return index % self.Ql
 
-    def beam_search(self, x):
+    def beam_search(self, x, trajectory_points, delta):
         _, index = torch.sort(x[:, 0, :], descending=True)
         index = index[:, 0:self.K]
         # index_w = torch.from_numpy(np.zeros([x.shape[0], self.K, self.Qw])).to(torch.float32).to(device)
         # index_l = torch.from_numpy(np.zeros([x.shape[0], self.K, self.Ql])).to(torch.float32).to(device)
         index_w = torch.zeros([x.shape[0], self.K, self.Qw])
         index_l = torch.zeros([x.shape[0], self.K, self.Ql])
+
         for i in range(self.K):
             fw = self.find_w(index[:, i])
             fl = self.find_l(index[:, i])
             for j in range(index.shape[0]):
                 index_w[j, i, int(fw[j])] = 1
                 index_l[j, i, int(fl[j])] = 1
-        return index_w, index_l
+                trajectory_points[j, delta, i, 0] = fl[j]
+                trajectory_points[j, delta, i, 1] = fw[j]
+
+        return index_w, index_l, trajectory_points
 
     def embedding(self, index_w, index_l):
         return torch.cat([index_w, index_l], 1)
@@ -114,28 +118,31 @@ class Decoder(nn.Module):
         return x, h1, c1, h2, c2
 
     def forward(self,x, h1, c1, h2, c2):
-        # embedded = torch.tensor([x.shape[0], self.K, x.shape[2]])
         x, h1, c1, h2, c2 = self.once(x, h1, c1, h2, c2)
-        index_w, index_l = self.beam_search(x)
+
+        trajectory_points = torch.zeros([x.shape[0], self.delta, self.K, 2])
+        index_w, index_l, trajectory_points = self.beam_search(x, trajectory_points, 0)
+
         index_w = self.fc_qw(index_w.to(device))
         index_l = self.fc_ql(index_l.to(device))
-        trajectory_points = torch.zeros([x.shape[0], self.delta, self.K, 2])
-        lstm_init = torch.zeros([self.K, 4, h1.shape[0], h1.shape[1], h1.shape[2]])
+        lstm_init = torch.zeros([self.K, 4, h1.shape[0], h1.shape[1], h1.shape[2]]).to(device)
         for i in range(self.K):
             lstm_init[i, 0] = h1
             lstm_init[i, 1] = c1
             lstm_init[i, 2] = h2
             lstm_init[i, 3] = c2
-        lstm_init.to(device)
-        print(index_w.shape, index_l.shape)
-        
-        for i in range(self.delta):
+
+        self.K = 1
+        for i in range(self.delta - 1):
             for j in range(self.K):
                 embedded = self.embedding(index_w[:, j, :], index_l[:, j, :]).unsqueeze(1).to(device)
-                embedded, _, _, _, _ = self.once(embedded,
-                                                 lstm_init[j, 0], lstm_init[j, 1], lstm_init[j, 2], lstm_init[j, 3])
-                print()
-        return x
+                embedded, lstm_init[j, 0], lstm_init[j, 1], lstm_init[j, 2], lstm_init[j, 3] = self.once(embedded,
+                                                                                         lstm_init[j, 0], lstm_init[j, 1],
+                                                                                         lstm_init[j, 2], lstm_init[j, 3])
+                index_w, index_l, trajectory_points = self.beam_search(embedded, trajectory_points, i+1)
+                index_w = self.fc_qw(index_w.to(device))
+                index_l = self.fc_ql(index_l.to(device))
+        return trajectory_points
 
 
 # 设置模型基本参数
@@ -144,9 +151,10 @@ encoder = Encoder(size_encoder_input, size_encoder_hidden_fc, size_encoder_hidde
 decoder = Decoder(size_decoder_input, size_decoder_hidden_fc, size_decoder_hidden_lstm, size_decoder_output_fc,
                   size_K, Qw, Ql, size_delta).to(device)
 
-print(encoder, decoder)
 
-out, (h1, c1), (h2, c2) = encoder(training_data_input)
-print(out.shape)
-out = decoder.forward(out, h1, c1, h2, c2)
-print(out.shape)
+encoded, (h1, c1), (h2, c2) = encoder(training_data_input)
+print(encoded.shape)
+decoded = decoder.forward(encoded, h1, c1, h2, c2)
+print(decoded.shape)
+
+
