@@ -17,8 +17,6 @@ for row in file_data_lines:
     data[temp, 4] = float(find_data[4])
     temp += 1
 
-# data = np.array(data.reshape(-1, 20, 5))
-# print(data.shape)
 
 sequence_length = 20
 hidden_length = 5
@@ -30,7 +28,6 @@ hidden_length = 5
 #         data_reshape = np.r_[data_reshape, np.array([[0, 0.0, 0.0, 0.0, 0.0]])]
 #     if i % 100 == 0:
 #         print(data_reshape.shape, data_reshape[-2, 0])
-#
 # np.save("data_reshape.npy", data_reshape)
 
 # 加载滑窗重组的结果
@@ -122,3 +119,5 @@ testing_data_output[:, :, 2] = testing_data_output[:, :, 2] + start_y
 #     plt.plot(testing_data_input[i, :, 1], testing_data_input[i, :, 2], "*")
 #     plt.plot(testing_data_output[i, :, 1], testing_data_output[i, :, 2], ".")
 #     plt.pause(0.001)
+
+
