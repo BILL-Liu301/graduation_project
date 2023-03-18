@@ -1,5 +1,7 @@
 import math
 import numpy as np
+import torch.nn as nn
+import torch
 import matplotlib.pyplot as plt
 
 # stamp x y Vx Vy
@@ -54,24 +56,26 @@ rate = 0.5
 training_data_input = np.array(data_reshape[0:int(data_reshape.shape[0] * rate), :, :])
 testing_data_input = np.array(
     data_reshape[int(data_reshape.shape[0] * rate):(data_reshape.shape[0] - data_reshape.shape[1]), :, :])
-training_data_output = np.zeros([training_data_input.shape[0], training_data_input.shape[1], 3])
-testing_data_output = np.zeros([testing_data_input.shape[0], testing_data_input.shape[1], 3])
+training_data_output = np.zeros([training_data_input.shape[0], training_data_input.shape[1], 1, 3])
+testing_data_output = np.zeros([testing_data_input.shape[0], testing_data_input.shape[1], 1, 3])
 
 for i in range(training_data_output.shape[0]):
     for j in range(training_data_output.shape[1]):
-        training_data_output[i, j, 0] = training_data_input[i, -1, 0] + 1 + j
-        training_data_output[i, j, 1] = data[int(training_data_output[i, j, 0]) - 1, 1] - training_data_input[i, 0, 1]
-        training_data_output[i, j, 2] = data[int(training_data_output[i, j, 0]) - 1, 2] - training_data_input[i, 0, 2]
+        training_data_output[i, j, 0, 0] = training_data_input[i, -1, 0] + 1 + j
+        training_data_output[i, j, 0, 1] = data[int(training_data_output[i, j, 0, 0]) - 1, 1] - training_data_input[i, 0, 1]
+        training_data_output[i, j, 0, 2] = data[int(training_data_output[i, j, 0, 0]) - 1, 2] - training_data_input[i, 0, 2]
     training_data_input[i, :, 1] = training_data_input[i, :, 1] - training_data_input[i, 0, 1]
     training_data_input[i, :, 2] = training_data_input[i, :, 2] - training_data_input[i, 0, 2]
 
 for i in range(testing_data_output.shape[0]):
     for j in range(testing_data_output.shape[1]):
-        testing_data_output[i, j, 0] = testing_data_input[i, -1, 0] + 1 + j
-        testing_data_output[i, j, 1] = data[int(testing_data_output[i, j, 0] - 1), 1] - testing_data_input[i, 0, 1]
-        testing_data_output[i, j, 2] = data[int(testing_data_output[i, j, 0] - 1), 2] - testing_data_input[i, 0, 2]
+        testing_data_output[i, j, 0, 0] = testing_data_input[i, -1, 0] + 1 + j
+        testing_data_output[i, j, 0, 1] = data[int(testing_data_output[i, j, 0, 0] - 1), 1] - testing_data_input[i, 0, 1]
+        testing_data_output[i, j, 0, 2] = data[int(testing_data_output[i, j, 0, 0] - 1), 2] - testing_data_input[i, 0, 2]
     testing_data_input[i, :, 1] = testing_data_input[i, :, 1] - testing_data_input[i, 0, 1]
     testing_data_input[i, :, 2] = testing_data_input[i, :, 2] - testing_data_input[i, 0, 2]
+training_data_output = training_data_output[:, :, :, 1:3]
+testing_data_output = testing_data_output[:, :, :, 1:3]
 
 # 栅格化,观测车辆在最初点的左下（5m，5m）的位置，车辆原点在Qw*Ql这个矩形的最下边中心
 Qw = 30
@@ -82,25 +86,15 @@ grid_w = 0.1  # y
 grid_l = 0.1  # x
 print(f"Qw * Ql = {Qw * grid_w * Ql * grid_l}m^2")
 
-training_data_input[:, :, 1] = training_data_input[:, :, 1] // grid_l
-training_data_input[:, :, 2] = training_data_input[:, :, 2] // grid_w
-training_data_output[:, :, 1] = training_data_output[:, :, 1] // grid_l
-training_data_output[:, :, 2] = training_data_output[:, :, 2] // grid_w
+training_data_input[:, :, 1] = training_data_input[:, :, 1] // grid_l + start_x
+training_data_input[:, :, 2] = training_data_input[:, :, 2] // grid_w + start_y
+training_data_output[:, :, 0, 0] = training_data_output[:, :, 0, 0] // grid_l + start_x
+training_data_output[:, :, 0, 1] = training_data_output[:, :, 0, 1] // grid_w + start_y
 
-testing_data_input[:, :, 1] = testing_data_input[:, :, 1] // grid_l
-testing_data_input[:, :, 2] = testing_data_input[:, :, 2] // grid_w
-testing_data_output[:, :, 1] = testing_data_output[:, :, 1] // grid_l
-testing_data_output[:, :, 2] = testing_data_output[:, :, 2] // grid_w
-
-training_data_input[:, :, 1] = training_data_input[:, :, 1] + start_x
-training_data_input[:, :, 2] = training_data_input[:, :, 2] + start_y
-training_data_output[:, :, 1] = training_data_output[:, :, 1] + start_x
-training_data_output[:, :, 2] = training_data_output[:, :, 2] + start_y
-
-testing_data_input[:, :, 1] = testing_data_input[:, :, 1] + start_x
-testing_data_input[:, :, 2] = testing_data_input[:, :, 2] + start_y
-testing_data_output[:, :, 1] = testing_data_output[:, :, 1] + start_x
-testing_data_output[:, :, 2] = testing_data_output[:, :, 2] + start_y
+testing_data_input[:, :, 1] = testing_data_input[:, :, 1] // grid_l + start_x
+testing_data_input[:, :, 2] = testing_data_input[:, :, 2] // grid_w + start_y
+testing_data_output[:, :, 0, 0] = testing_data_output[:, :, 0, 0] // grid_l + start_x
+testing_data_output[:, :, 0, 1] = testing_data_output[:, :, 0, 1] // grid_w + start_y
 
 # print(training_data_input[:, :, 1].min(), training_data_input[:, :, 2].min())
 # print(training_data_output[:, :, 1].min(), training_data_output[:, :, 2].min())
@@ -117,7 +111,14 @@ testing_data_output[:, :, 2] = testing_data_output[:, :, 2] + start_y
 # for i in range(testing_data_input.shape[0]):
 #     plt.clf()
 #     plt.plot(testing_data_input[i, :, 1], testing_data_input[i, :, 2], "*")
-#     plt.plot(testing_data_output[i, :, 1], testing_data_output[i, :, 2], ".")
+#     plt.plot(testing_data_output[i, :, 0, 0], testing_data_output[i, :, 0, 1], ".")
 #     plt.pause(0.001)
 
-
+def criterion(predicted, actual):
+    middle = torch.zeros([predicted.shape[0], predicted.shape[1], 1, predicted.shape[3]]).to(torch.device('cuda:0'))
+    for i in range(predicted.shape[2]):
+        middle = middle + predicted[:, :, 0:1, :]
+    middle = middle / torch.tensor(4.0)
+    f = nn.MSELoss()
+    loss = f(middle, actual)
+    return loss
