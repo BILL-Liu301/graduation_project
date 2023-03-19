@@ -4,6 +4,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
+import gc
+torch.cuda.empty_cache()
+gc.collect()
 
 # 定义tensorboard的writer
 tensorboard_writer = SummaryWriter("../runs/07")
@@ -182,5 +185,6 @@ if training_or_testing == 0:
             tensorboard_writer.add_scalar("loss", loss.item(), epoch)
         if loss.item() <= 1:
             break
+    tensorboard_writer.close()
 else:
     print("程序结束")
