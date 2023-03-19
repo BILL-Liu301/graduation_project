@@ -96,6 +96,9 @@ testing_data_input[:, :, 2] = testing_data_input[:, :, 2] // grid_w + start_y
 testing_data_output[:, :, 0, 0] = testing_data_output[:, :, 0, 0] // grid_l + start_x
 testing_data_output[:, :, 0, 1] = testing_data_output[:, :, 0, 1] // grid_w + start_y
 
+training_data_output = np.squeeze(training_data_output, axis=2)
+testing_data_output = np.squeeze(testing_data_output, axis=2)
+
 # print(training_data_input[:, :, 1].min(), training_data_input[:, :, 2].min())
 # print(training_data_output[:, :, 1].min(), training_data_output[:, :, 2].min())
 # print(testing_data_input[:, :, 1].min(), testing_data_input[:, :, 2].min())

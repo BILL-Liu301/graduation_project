@@ -83,8 +83,8 @@ class EncoderDecoder(nn.Module):
     def beam_search(self, x, decoded, delta):
         _, index = torch.sort(x[:, 0, :], descending=True)
         index = index[:, 0:self.decoder_K]
-        index_w = torch.zeros([x.shape[0], self.decoder_K, self.decoder_Qw]).to(device)
-        index_l = torch.zeros([x.shape[0], self.decoder_K, self.decoder_Ql]).to(device)
+        index_w = torch.zeros([x.shape[0], self.decoder_K, self.decoder_Qw])
+        index_l = torch.zeros([x.shape[0], self.decoder_K, self.decoder_Ql])
 
         for i in range(self.decoder_K):
             fw = self.find_w(index[:, i])
@@ -125,7 +125,7 @@ class EncoderDecoder(nn.Module):
     def decoder(self, x, h1, c1, h2, c2):
         x, h1, c1, h2, c2 = self.once(x, h1, c1, h2, c2)
 
-        decoded = torch.zeros([x.shape[0], self.decoder_delta, self.decoder_K, 2]).to(device)
+        decoded = torch.zeros([x.shape[0], self.decoder_delta, self.decoder_K, 2])
         index_w, index_l, decoded = self.beam_search(x, decoded, 0)
 
         index_w = self.decoder_fc_qw(index_w.to(device))
@@ -147,10 +147,11 @@ class EncoderDecoder(nn.Module):
                 index_w = self.decoder_fc_qw(index_w.to(device))
                 index_l = self.decoder_fc_ql(index_l.to(device))
 
-        average = torch.zeros([decoded.shape[0], decoded.shape[1], 1, decoded.shape[3]]).to(device)
-        for i in range(decoded.shape[2]):
-            average = average + decoded[:, :, 0:1, :]
-        average = average / torch.tensor(4.0)
+        average = decoded.sum(dim=2).to(device)
+        # average = torch.zeros([decoded.shape[0], decoded.shape[1], 1, decoded.shape[3]]).to(device)
+        # for i in range(decoded.shape[2]):
+        #     average = average + decoded[:, :, 0:1, :]
+        # average = average / torch.tensor(4.0)
         return decoded, average
 
     def forward(self, x):
@@ -171,7 +172,7 @@ criterion = nn.MSELoss()
 if training_or_testing == 0:
     for epoch in range(max_epochs):
         trajectory_prediction, middle = model_predict(training_data_input)
-        loss = criterion(trajectory_prediction, training_data_output)
+        loss = criterion(middle, training_data_output)
         loss.requires_grad_(True)
         optimizer.zero_grad()
         loss.backward()
