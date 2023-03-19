@@ -20,22 +20,22 @@ for row in file_data_lines:
     temp += 1
 
 
-sequence_length = 20
+batch_size = 10
 hidden_length = 5
+jump_size = batch_size * 2
+split_size = 1
 # # 滑窗重组
 # data_reshape = np.array([[0, 0.0, 0.0, 0.0, 0.0]])
-# for i in range(data.shape[0] - sequence_length):
-#     for j in range(sequence_length):
+# for i in range(0, data.shape[0] - jump_size, jump_size):
+#     for j in range(0, batch_size*split_size, split_size):
 #         data_reshape[-1, :] = np.array(data[i+j, :])
 #         data_reshape = np.r_[data_reshape, np.array([[0, 0.0, 0.0, 0.0, 0.0]])]
-#     if i % 100 == 0:
-#         print(data_reshape.shape, data_reshape[-2, 0])
 # np.save("data_reshape.npy", data_reshape)
 
 # 加载滑窗重组的结果
 data_reshape = np.load("data_reshape.npy")
 data_reshape = np.delete(data_reshape, [-1], 0)
-data_reshape = np.array(data_reshape.reshape(-1, sequence_length, 5))
+data_reshape = np.array(data_reshape.reshape(-1, batch_size, 5))
 dis = np.zeros(data_reshape.shape[0])
 print(data_reshape.shape)
 
@@ -56,58 +56,58 @@ rate = 0.5
 training_data_input = np.array(data_reshape[0:int(data_reshape.shape[0] * rate), :, :])
 testing_data_input = np.array(
     data_reshape[int(data_reshape.shape[0] * rate):(data_reshape.shape[0] - data_reshape.shape[1]), :, :])
-training_data_output = np.zeros([training_data_input.shape[0], training_data_input.shape[1], 1, 3])
-testing_data_output = np.zeros([testing_data_input.shape[0], testing_data_input.shape[1], 1, 3])
+training_data_output = np.zeros([training_data_input.shape[0], training_data_input.shape[1], 3])
+testing_data_output = np.zeros([testing_data_input.shape[0], testing_data_input.shape[1], 3])
 
 for i in range(training_data_output.shape[0]):
     for j in range(training_data_output.shape[1]):
-        training_data_output[i, j, 0, 0] = training_data_input[i, -1, 0] + 1 + j
-        training_data_output[i, j, 0, 1] = data[int(training_data_output[i, j, 0, 0]) - 1, 1] - training_data_input[i, 0, 1]
-        training_data_output[i, j, 0, 2] = data[int(training_data_output[i, j, 0, 0]) - 1, 2] - training_data_input[i, 0, 2]
+        training_data_output[i, j, 0] = training_data_input[i, -1, 0] + split_size + j * split_size
+        training_data_output[i, j, 1] = data[int(training_data_output[i, j, 0]) - 1, 1] - training_data_input[i, 0, 1]
+        training_data_output[i, j, 2] = data[int(training_data_output[i, j, 0]) - 1, 2] - training_data_input[i, 0, 2]
     training_data_input[i, :, 1] = training_data_input[i, :, 1] - training_data_input[i, 0, 1]
     training_data_input[i, :, 2] = training_data_input[i, :, 2] - training_data_input[i, 0, 2]
 
 for i in range(testing_data_output.shape[0]):
     for j in range(testing_data_output.shape[1]):
-        testing_data_output[i, j, 0, 0] = testing_data_input[i, -1, 0] + 1 + j
-        testing_data_output[i, j, 0, 1] = data[int(testing_data_output[i, j, 0, 0] - 1), 1] - testing_data_input[i, 0, 1]
-        testing_data_output[i, j, 0, 2] = data[int(testing_data_output[i, j, 0, 0] - 1), 2] - testing_data_input[i, 0, 2]
+        testing_data_output[i, j, 0] = testing_data_input[i, -1, 0] + split_size + j * split_size
+        testing_data_output[i, j, 1] = data[int(testing_data_output[i, j, 0] - 1), 1] - testing_data_input[i, 0, 1]
+        testing_data_output[i, j, 2] = data[int(testing_data_output[i, j, 0] - 1), 2] - testing_data_input[i, 0, 2]
     testing_data_input[i, :, 1] = testing_data_input[i, :, 1] - testing_data_input[i, 0, 1]
     testing_data_input[i, :, 2] = testing_data_input[i, :, 2] - testing_data_input[i, 0, 2]
-training_data_output = training_data_output[:, :, :, 1:3]
-testing_data_output = testing_data_output[:, :, :, 1:3]
+training_data_output = training_data_output[:, :, 1:3]
+testing_data_output = testing_data_output[:, :, 1:3]
 
 # 栅格化,观测车辆在最初点的左下（5m，5m）的位置，车辆原点在Qw*Ql这个矩形的最下边中心
-Qw = 30
-Ql = 40
-start_x = 22
-start_y = 15
+Qw = 15
+Ql = 25
+start_x = 20
+start_y = 10
 grid_w = 0.1  # y
 grid_l = 0.1  # x
 print(f"Qw * Ql = {Qw * grid_w * Ql * grid_l}m^2")
 
 training_data_input[:, :, 1] = training_data_input[:, :, 1] // grid_l + start_x
 training_data_input[:, :, 2] = training_data_input[:, :, 2] // grid_w + start_y
-training_data_output[:, :, 0, 0] = training_data_output[:, :, 0, 0] // grid_l + start_x
-training_data_output[:, :, 0, 1] = training_data_output[:, :, 0, 1] // grid_w + start_y
+training_data_output[:, :, 0] = training_data_output[:, :, 0] // grid_l + start_x
+training_data_output[:, :, 1] = training_data_output[:, :, 1] // grid_w + start_y
 
 testing_data_input[:, :, 1] = testing_data_input[:, :, 1] // grid_l + start_x
 testing_data_input[:, :, 2] = testing_data_input[:, :, 2] // grid_w + start_y
-testing_data_output[:, :, 0, 0] = testing_data_output[:, :, 0, 0] // grid_l + start_x
-testing_data_output[:, :, 0, 1] = testing_data_output[:, :, 0, 1] // grid_w + start_y
+testing_data_output[:, :, 0] = testing_data_output[:, :, 0] // grid_l + start_x
+testing_data_output[:, :, 1] = testing_data_output[:, :, 1] // grid_w + start_y
 
-training_data_output = np.squeeze(training_data_output, axis=2)
-testing_data_output = np.squeeze(testing_data_output, axis=2)
+# training_data_output = np.squeeze(training_data_output, axis=2)
+# testing_data_output = np.squeeze(testing_data_output, axis=2)
 
 # print(training_data_input[:, :, 1].min(), training_data_input[:, :, 2].min())
-# print(training_data_output[:, :, 1].min(), training_data_output[:, :, 2].min())
+# print(training_data_output[:, :, 0].min(), training_data_output[:, :, 1].min())
 # print(testing_data_input[:, :, 1].min(), testing_data_input[:, :, 2].min())
-# print(testing_data_output[:, :, 1].min(), testing_data_output[:, :, 2].min())
+# print(testing_data_output[:, :, 0].min(), testing_data_output[:, :, 1].min())
 #
 # print(training_data_input[:, :, 1].max(), training_data_input[:, :, 2].max())
-# print(training_data_output[:, :, 1].max(), training_data_output[:, :, 2].max())
+# print(training_data_output[:, :, 0].max(), training_data_output[:, :, 1].max())
 # print(testing_data_input[:, :, 1].max(), testing_data_input[:, :, 2].max())
-# print(testing_data_output[:, :, 1].max(), testing_data_output[:, :, 2].max())
+# print(testing_data_output[:, :, 0].max(), testing_data_output[:, :, 1].max())
 
 
 # plt.figure()

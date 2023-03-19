@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 import gc
+
 torch.cuda.empty_cache()
 gc.collect()
 
@@ -26,7 +27,7 @@ else:
     print("本次程序只作测试")
 
 # 可调参数
-size_basic = 256
+size_basic = 128
 size_encoder_input = 5
 size_encoder_hidden_fc = size_basic
 size_encoder_hidden_lstm = size_basic
@@ -37,7 +38,7 @@ size_decoder_hidden_fc = size_basic
 size_decoder_output_fc = Ql * Qw
 size_K = 4
 size_delta = training_data_output.shape[1]
-learning_rate = 1e-2
+learning_rate = 100
 max_epochs = 500
 
 # 更改数据类型
@@ -92,11 +93,12 @@ class EncoderDecoder(nn.Module):
         for i in range(self.decoder_K):
             fw = self.find_w(index[:, i])
             fl = self.find_l(index[:, i])
-            for j in range(index.shape[0]):
-                index_w[j, i, int(fw[j])] = 1
-                index_l[j, i, int(fl[j])] = 1
-                decoded[j, delta, i, 0] = fl[j]
-                decoded[j, delta, i, 1] = fw[j]
+            with torch.no_grad():
+                for j in range(index.shape[0]):
+                    index_w[j, i, int(fw[j])] = 1
+                    index_l[j, i, int(fl[j])] = 1
+                    decoded[j, delta, i, 0] = fl[j]
+                    decoded[j, delta, i, 1] = fw[j]
 
         return index_w, index_l, decoded
 
@@ -104,13 +106,13 @@ class EncoderDecoder(nn.Module):
         return torch.cat([index_w, index_l], 1)
 
     def once(self, x, h1, c1, h2, c2):
-        x, (h1, c1) = self.decoder_lstm1(x, (h1, c1))
-        x, (h2, c2) = self.decoder_lstm2(x, (h2, c2))
-        x = self.decoder_fc1(x)
-        x = self.decoder_fc2(x)
-        x = self.decoder_fc3(x)
-        # x = self.decoder_softmax(x)
-        return x, h1, c1, h2, c2
+        y, (h1, c1) = self.decoder_lstm1(x, (h1, c1))
+        y, (h2, c2) = self.decoder_lstm2(y, (h2, c2))
+        y = self.decoder_fc1(y)
+        y = self.decoder_fc2(y)
+        y = self.decoder_fc3(y)
+        # y = self.decoder_softmax(y)
+        return y, h1, c1, h2, c2
 
     def encoder(self, x):
         h0 = torch.zeros(1, x.size(0), self.encoder_hidden_size_lstm).to(device)
@@ -126,35 +128,25 @@ class EncoderDecoder(nn.Module):
         return encoded, h1, c1, h2, c2
 
     def decoder(self, x, h1, c1, h2, c2):
-        x, h1, c1, h2, c2 = self.once(x, h1, c1, h2, c2)
+        y, h1, c1, h2, c2 = self.once(x, h1, c1, h2, c2)
 
-        decoded = torch.zeros([x.shape[0], self.decoder_delta, self.decoder_K, 2])
-        index_w, index_l, decoded = self.beam_search(x, decoded, 0)
+        decoded = torch.zeros([y.shape[0], self.decoder_delta, self.decoder_K, 2], requires_grad=True)
+        index_w, index_l, decoded = self.beam_search(y, decoded, 0)
 
         index_w = self.decoder_fc_qw(index_w.to(device))
         index_l = self.decoder_fc_ql(index_l.to(device))
-        lstm_init = torch.zeros([self.decoder_K, 4, h1.shape[0], h1.shape[1], h1.shape[2]]).to(device)
-        for i in range(self.decoder_K):
-            lstm_init[i, 0] = h1
-            lstm_init[i, 1] = c1
-            lstm_init[i, 2] = h2
-            lstm_init[i, 3] = c2
 
         self.decoder_K = 1
         for i in range(self.decoder_delta - 1):
-            for j in range(self.decoder_K):
-                embedded = self.embedding(index_w[:, j, :], index_l[:, j, :]).unsqueeze(1).to(device)
-                embedded, lstm_init[j, 0], lstm_init[j, 1], lstm_init[j, 2], lstm_init[j, 3] = \
-                    self.once(embedded, lstm_init[j, 0], lstm_init[j, 1], lstm_init[j, 2], lstm_init[j, 3])
-                index_w, index_l, decoded = self.beam_search(embedded, decoded, i + 1)
-                index_w = self.decoder_fc_qw(index_w.to(device))
-                index_l = self.decoder_fc_ql(index_l.to(device))
+            index_w = index_w.sum(dim=1)
+            index_l = index_l.sum(dim=1)
+            embedded = self.embedding(index_w, index_l).unsqueeze(1)
+            y, h1, c1, h2, c2 = self.once(embedded, h1, c1, h2, c2)
+            index_w, index_l, decoded = self.beam_search(y, decoded, i + 1)
+            index_w = self.decoder_fc_qw(index_w.to(device))
+            index_l = self.decoder_fc_ql(index_l.to(device))
 
         average = decoded.sum(dim=2).to(device)
-        # average = torch.zeros([decoded.shape[0], decoded.shape[1], 1, decoded.shape[3]]).to(device)
-        # for i in range(decoded.shape[2]):
-        #     average = average + decoded[:, :, 0:1, :]
-        # average = average / torch.tensor(4.0)
         return decoded, average
 
     def forward(self, x):
@@ -176,12 +168,12 @@ if training_or_testing == 0:
     for epoch in range(max_epochs):
         trajectory_prediction, middle = model_predict(training_data_input)
         loss = criterion(middle, training_data_output)
-        loss.requires_grad_(True)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
         if (epoch + 1) % 50 == 0:
+            print(loss.item())
             tensorboard_writer.add_scalar("loss", loss.item(), epoch)
         if loss.item() <= 1:
             break
