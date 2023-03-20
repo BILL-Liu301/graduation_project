@@ -94,10 +94,10 @@ class EncoderDecoder(nn.Module):
             fl = self.find_l(index[:, k])
             # with torch.no_grad():
             for j in range(index.shape[0]):
-                index_w[:, :, :] = torch.tensor(0.0)
-                index_l[:, :, :] = torch.tensor(0.0)
-                index_w[j, k, int(fw[j])] = torch.tensor(1.0)
-                index_l[j, k, int(fl[j])] = torch.tensor(1.0)
+                index_w[:, :, :] = 0.0
+                index_l[:, :, :] = 0.0
+                index_w[j, k, int(fw[j])] = 1
+                index_l[j, k, int(fl[j])] = 1
                 decoded[j, delta, k, 0] = fl[j]
                 decoded[j, delta, k, 1] = fw[j]
 
@@ -107,13 +107,13 @@ class EncoderDecoder(nn.Module):
         return torch.cat([index_w, index_l], 1)
 
     def once(self, x, h1, c1, h2, c2):
-        z, (h1, c1) = self.decoder_lstm1(x, (h1, c1))
-        z, (h2, c2) = self.decoder_lstm2(z, (h2, c2))
-        z = self.decoder_fc1(z)
-        z = self.decoder_fc2(z)
-        z = self.decoder_fc3(z)
-        z = self.decoder_softmax(z)
-        return z, (h1, c1), (h2, c2)
+        y, (h1, c1) = self.decoder_lstm1(x, (h1, c1))
+        y, (h2, c2) = self.decoder_lstm2(y, (h2, c2))
+        y = self.decoder_fc1(y)
+        y = self.decoder_fc2(y)
+        y = self.decoder_fc3(y)
+        y = self.decoder_softmax(y)
+        return y, (h1, c1), (h2, c2)
 
     def encoder(self, x):
         h0 = torch.zeros(1, x.size(0), self.encoder_hidden_size_lstm).to(device)
@@ -124,7 +124,7 @@ class EncoderDecoder(nn.Module):
         encoded = self.encoder_fc3(encoded)
         encoded, (h1, c1) = self.encoder_lstm1(encoded, (h0, c0))
         encoded, (h2, c2) = self.encoder_lstm2(encoded, (h0, c0))
-        encoded = encoded[:, -1, :].unsqueeze(1)
+        encoded = encoded[:, -1, :].reshape([encoded.shape[0], 1, encoded.shape[2]])
 
         return encoded, (h1, c1), (h2, c2)
 
