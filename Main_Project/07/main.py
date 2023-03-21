@@ -52,6 +52,69 @@ print(f'testing_data_input: {testing_data_input.shape}')
 print(f'testing_data_output: {testing_data_output.shape}')
 
 
+# 编码器
+class Encoder(nn.Module):
+    def __int__(self, encoder_input_size, encoder_hidden_size_fc, encoder_hidden_size_lstm, encoder_output_size_lstm, ):
+        super(Encoder, self).__int__()
+        self.encoder_hidden_size_lstm = encoder_hidden_size_lstm
+        self.encoder_fc1 = nn.Linear(encoder_input_size, encoder_hidden_size_fc)
+        self.encoder_fc2 = nn.Linear(encoder_hidden_size_fc, encoder_hidden_size_fc)
+        self.encoder_fc3 = nn.Linear(encoder_hidden_size_fc, encoder_hidden_size_fc)
+        self.encoder_lstm1 = nn.LSTM(encoder_hidden_size_fc, encoder_hidden_size_lstm, num_layers=1, batch_first=True)
+        self.encoder_lstm2 = nn.LSTM(encoder_hidden_size_fc, encoder_output_size_lstm, num_layers=1, batch_first=True)
+
+    def encoder(self, x):
+        h0 = torch.zeros(1, x.size(0), self.encoder_hidden_size_lstm).to(device)
+        c0 = torch.zeros(1, x.size(0), self.encoder_hidden_size_lstm).to(device)
+
+        encoded = self.encoder_fc1(x)
+        encoded = self.encoder_fc2(encoded)
+        encoded = self.encoder_fc3(encoded)
+        encoded, (h1, c1) = self.encoder_lstm1(encoded, (h0, c0))
+        encoded, (h2, c2) = self.encoder_lstm2(encoded, (h0, c0))
+        encoded = encoded[:, -1, :].unsqueeze(1)
+
+        return encoded, (h1, c1), (h2, c2)
+
+
+# 解码器
+class Decoder(nn.Module):
+    def __int__(self, decoder_input_size, decoder_hidden_size_fc, decoder_hidden_size_lstm, decoder_output_size_fc,
+                decoder_k, decoder_qw, decoder_ql, decoder_delta):
+        super(Decoder, self).__int__()
+        self.decoder_lstm1 = nn.LSTM(decoder_input_size, decoder_hidden_size_lstm, num_layers=1, batch_first=True)
+        self.decoder_lstm2 = nn.LSTM(decoder_hidden_size_lstm, decoder_hidden_size_lstm, num_layers=1, batch_first=True)
+        self.decoder_fc1 = nn.Linear(decoder_hidden_size_lstm, decoder_hidden_size_fc)
+        self.decoder_fc2 = nn.Linear(decoder_hidden_size_fc, decoder_hidden_size_fc)
+        self.decoder_fc3 = nn.Linear(decoder_hidden_size_fc, decoder_output_size_fc)
+        self.decoder_softmax = nn.Softmax(dim=2)
+        self.decoder_fc4 = nn.Linear(decoder_output_size_fc, decoder_input_size)
+        self.decoder_fc5 = nn.Linear(decoder_input_size, decoder_input_size)
+
+        self.decoder_fc_ql = nn.Linear(decoder_ql, int(decoder_input_size / 2))
+        self.decoder_fc_qw = nn.Linear(decoder_qw, int(decoder_input_size / 2))
+        self.decoder_K = decoder_k
+        self.decoder_Qw = decoder_qw
+        self.decoder_Ql = decoder_ql
+        self.decoder_delta = decoder_delta
+
+    def decoder(self, x, h1, c1, h2, c2):
+        y, (h1, c1) = self.decoder_lstm1(x, (h1, c1))
+        y, (h2, c2) = self.decoder_lstm2(y, (h2, c2))
+        y = self.decoder_fc1(y)
+        y = self.decoder_fc2(y)
+        y = self.decoder_fc3(y)
+        y = self.decoder_softmax(y)
+
+        return y, (h1, c1), (h2, c2)
+
+
+# 过渡器
+class Transition(nn.Module):
+    def __int__(self):
+        super(Transition, self).__int__()
+
+
 # 整合编码器和解码器
 class EncoderDecoder(nn.Module):
     def __init__(self, encoder_input_size, encoder_hidden_size_fc, encoder_hidden_size_lstm, encoder_output_size_lstm,
@@ -70,7 +133,10 @@ class EncoderDecoder(nn.Module):
         self.decoder_fc1 = nn.Linear(decoder_hidden_size_lstm, decoder_hidden_size_fc)
         self.decoder_fc2 = nn.Linear(decoder_hidden_size_fc, decoder_hidden_size_fc)
         self.decoder_fc3 = nn.Linear(decoder_hidden_size_fc, decoder_output_size_fc)
-        self.decoder_softmax = nn.Softmax(dim=1)
+        self.decoder_softmax = nn.Softmax(dim=2)
+        self.decoder_fc4 = nn.Linear(decoder_output_size_fc, decoder_input_size)
+        self.decoder_fc5 = nn.Linear(decoder_input_size, decoder_input_size)
+
         self.decoder_fc_ql = nn.Linear(decoder_ql, int(decoder_input_size / 2))
         self.decoder_fc_qw = nn.Linear(decoder_qw, int(decoder_input_size / 2))
         self.decoder_K = decoder_k
@@ -83,37 +149,6 @@ class EncoderDecoder(nn.Module):
 
     def find_l(self, index):
         return index % self.decoder_Ql
-
-    def beam_search(self, x, decoded, delta, index_w, index_l):
-        _, index = x[:, 0, :].sort(descending=True)
-        # _, index = x.topk(k=self.decoder_K, dim=2, largest=True, sorted=True)
-        index = index[:, 0:self.decoder_K]
-
-        for k in range(self.decoder_K):
-            fw = self.find_w(index[:, k])
-            fl = self.find_l(index[:, k])
-            # with torch.no_grad():
-            for j in range(index.shape[0]):
-                index_w[:, :, :] = torch.tensor(0.0)
-                index_l[:, :, :] = torch.tensor(0.0)
-                index_w[j, k, int(fw[j])] = torch.tensor(1.0)
-                index_l[j, k, int(fl[j])] = torch.tensor(1.0)
-                decoded[j, delta, k, 0] = fl[j]
-                decoded[j, delta, k, 1] = fw[j]
-
-        return index_w, index_l, decoded
-
-    def embedding(self, index_w, index_l):
-        return torch.cat([index_w, index_l], 1)
-
-    def once(self, x, h1, c1, h2, c2):
-        z, (h1, c1) = self.decoder_lstm1(x, (h1, c1))
-        z, (h2, c2) = self.decoder_lstm2(z, (h2, c2))
-        z = self.decoder_fc1(z)
-        z = self.decoder_fc2(z)
-        z = self.decoder_fc3(z)
-        z = self.decoder_softmax(z)
-        return z, (h1, c1), (h2, c2)
 
     def encoder(self, x):
         h0 = torch.zeros(1, x.size(0), self.encoder_hidden_size_lstm).to(device)
@@ -129,29 +164,21 @@ class EncoderDecoder(nn.Module):
         return encoded, (h1, c1), (h2, c2)
 
     def decoder(self, x, h1, c1, h2, c2):
-        y, (h1, c1), (h2, c2) = self.once(x, h1, c1, h2, c2)
+        decoded = torch.zeros(x.shape[0], self.decoder_delta, self.decoder_Qw * self.decoder_Ql, requires_grad=True).to(
+            device)
+        for i in range(self.decoder_delta):
+            z, (h1, c1) = self.decoder_lstm1(x, (h1, c1))
+            z, (h2, c2) = self.decoder_lstm2(z, (h2, c2))
+            z = self.decoder_fc1(z)
+            z = self.decoder_fc2(z)
+            z = self.decoder_fc3(z)
+            z = self.decoder_softmax(z)
+            decoded[:, i, :] = z[:, 0, :].clone()
+            z = self.decoder_fc4(z)
+            z = self.decoder_fc5(z)
+            x = z.clone()
 
-        decoded = torch.zeros([y.shape[0], self.decoder_delta, self.decoder_K, 2], requires_grad=True).to(device)
-        index_w = torch.zeros([x.shape[0], self.decoder_K, self.decoder_Qw], requires_grad=True).to(device)
-        index_l = torch.zeros([x.shape[0], self.decoder_K, self.decoder_Ql], requires_grad=True).to(device)
-        index_w, index_l, decoded = self.beam_search(y, decoded, 0, index_w, index_l)
-
-        index_w_temp = self.decoder_fc_qw(index_w)
-        index_l_temp = self.decoder_fc_ql(index_l)
-
-        self.decoder_K = 1
-        index_w = torch.zeros([x.shape[0], self.decoder_K, self.decoder_Qw], requires_grad=True).to(device)
-        index_l = torch.zeros([x.shape[0], self.decoder_K, self.decoder_Ql], requires_grad=True).to(device)
-        for i in range(self.decoder_delta - 1):
-            embedded = torch.cat((index_w_temp.sum(dim=1), index_l_temp.sum(dim=1)), dim=1).unsqueeze(1)
-            y, (h1, c1), (h2, c2) = self.once(embedded, h1, c1, h2, c2)
-
-            index_w, index_l, decoded = self.beam_search(y, decoded, i+1, index_w, index_l)
-            index_w_temp = self.decoder_fc_qw(index_w.to(device))
-            index_l_temp = self.decoder_fc_ql(index_l.to(device))
-
-        average = decoded.mean(dim=2).to(device)
-        return decoded, average
+        return z, decoded
 
     def forward(self, x):
         encoded, (h1, c1), (h2, c2) = self.encoder(x)
@@ -166,12 +193,14 @@ model_predict = EncoderDecoder(size_encoder_input, size_encoder_hidden_fc, size_
                                size_decoder_output_fc,
                                size_K, Qw, Ql, size_delta).to(device)
 optimizer = torch.optim.Adam(model_predict.parameters(), lr=learning_rate)
-criterion = nn.MSELoss()
+criterion = nn.L1Loss()
 
 if training_or_testing == 0:
     for epoch in range(max_epochs):
-        trajectory_prediction, middle = model_predict.forward(training_data_input)
-        loss = criterion(middle, torch.zeros([middle.shape[0], middle.shape[1], middle.shape[2]]).to(device))
+        _, trajectory_prediction = model_predict.forward(training_data_input)
+        loss = criterion(trajectory_prediction, torch.zeros(
+            [trajectory_prediction.shape[0], trajectory_prediction.shape[1], trajectory_prediction.shape[2]]).to(
+            device))
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
