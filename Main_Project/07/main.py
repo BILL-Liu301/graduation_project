@@ -42,8 +42,8 @@ size_transition_output_fc = size_decoder_input
 
 size_K = 4
 size_delta = training_data_output.shape[1]
-learning_rate = 1e-5
-max_epochs = 10000
+learning_rate = 1e-6
+max_epochs = 500000
 
 # 更改数据类型
 training_data_input = torch.from_numpy(training_data_input).to(torch.float32).to(device)
@@ -100,7 +100,7 @@ class Decoder(nn.Module):
         y = self.decoder_fc1(y)
         y = self.decoder_fc2(y)
         y = self.decoder_fc3(y)
-        y = self.decoder_softmax(y)
+        # y = self.decoder_softmax(y)
         y = y.squeeze(1)
 
         return y, (h1, c1), (h2, c2)
@@ -208,12 +208,12 @@ for epoch in range(max_epochs):
     optimizer_encoder.zero_grad()
     optimizer_decoder.zero_grad()
     loss.backward()
-    if (epoch+1) % 50 == 0:
+    if (epoch+1) % 100 == 0:
         print(f"epoch:{epoch+1},loss:{loss.item()}")
         tensorboard_writer.add_scalar("loss", loss.item(), epoch)
     optimizer_encoder.step()
     optimizer_decoder.step()
-
+tensorboard_writer.close()
 
 
 
