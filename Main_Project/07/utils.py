@@ -102,7 +102,6 @@ testing_data_input[:, :, 2] = testing_data_input[:, :, 2] // grid_w + start_y
 testing_data_output[:, :, 0] = testing_data_output[:, :, 1] // grid_l + start_x
 testing_data_output[:, :, 1] = testing_data_output[:, :, 2] // grid_w + start_y
 
-
 # print(training_data_input[:, :, 1].min(), training_data_input[:, :, 2].min())
 # print(training_data_output[:, :, 0].min(), training_data_output[:, :, 1].min())
 # print(testing_data_input[:, :, 1].min(), testing_data_input[:, :, 2].min())
@@ -141,6 +140,7 @@ for i in range(testing_data_output.shape[0]):
 training_data_output = np.squeeze(training_data_output, axis=1)
 testing_data_output = np.squeeze(testing_data_output, axis=1)
 
+
 def criterion(predicted, actual):
     middle = torch.zeros([predicted.shape[0], predicted.shape[1], 1, predicted.shape[3]]).to(torch.device('cuda:0'))
     for i in range(predicted.shape[2]):
@@ -149,3 +149,11 @@ def criterion(predicted, actual):
     f = nn.MSELoss()
     loss = f(middle, actual)
     return loss
+
+
+def find_w(index):
+    return (index / Ql).floor()
+
+
+def find_l(index):
+    return index % Ql
