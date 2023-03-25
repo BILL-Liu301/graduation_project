@@ -43,7 +43,7 @@ size_transition_output_fc = size_decoder_input
 size_K = 4
 size_delta = training_data_output.shape[1]
 learning_rate = 1e-6
-max_epochs = 500000
+max_epochs = 5000000
 
 # 更改数据类型
 training_data_input = torch.from_numpy(training_data_input).to(torch.float32).to(device)
@@ -208,11 +208,18 @@ for epoch in range(max_epochs):
     optimizer_encoder.zero_grad()
     optimizer_decoder.zero_grad()
     loss.backward()
+    if (epoch+1) == (max_epochs/2):
+        learning_rate = learning_rate / 10
     if (epoch+1) % 100 == 0:
         print(f"epoch:{epoch+1},loss:{loss.item()}")
         tensorboard_writer.add_scalar("loss", loss.item(), epoch)
+    if loss.item() <= 1e-2:
+        torch.save(encoder, str(epoch + 1) + "_encoder_" + str(loss.item()))
+        torch.save(decoder, str(epoch + 1) + "_decoder_" + str(loss.item()))
     optimizer_encoder.step()
     optimizer_decoder.step()
+torch.save(encoder, "end_encoder")
+torch.save(decoder, "end_decoder")
 tensorboard_writer.close()
 
 
