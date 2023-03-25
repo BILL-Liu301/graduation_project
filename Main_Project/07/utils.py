@@ -31,13 +31,12 @@ batch_size = 10
 hidden_length = 5
 jump_size = int(batch_size / 2)
 split_size = 1
-# # 滑窗重组
+# 滑窗重组
 # data_reshape = np.array([[0, 0.0, 0.0, 0.0, 0.0]])
 # for i in range(0, data.shape[0] - jump_size, jump_size):
 #     for j in range(0, batch_size*split_size, split_size):
 #         data_reshape[-1, :] = np.array(data[i+j, :])
 #         data_reshape = np.r_[data_reshape, np.array([[0, 0.0, 0.0, 0.0, 0.0]])]
-#     print(i)
 # np.save("data_reshape.npy", data_reshape)
 
 # 加载滑窗重组的结果

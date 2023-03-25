@@ -7,6 +7,7 @@ import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 import gc
 import matplotlib.pyplot as plt
+import torch.optim.lr_scheduler as scheduler
 
 torch.cuda.empty_cache()
 gc.collect()
@@ -22,7 +23,7 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print(f'本次程序运行的设备环境为{device}，{torch.cuda.get_device_name(device)}')
 
 # 设定工作模式
-training_or_testing = int(input("请输入模式选择，0代表训练，1代表只作测试："))  # 0:训练 1:测试
+training_or_testing = 0  # 0:训练 1:测试
 if training_or_testing == 0:
     print("本次程序将会进行训练，并测试模型")
 else:
@@ -44,7 +45,7 @@ size_transition_output_fc = size_decoder_input
 
 size_K = 4
 size_delta = training_data_output.shape[1]
-learning_rate = 1e-6
+learning_rate = 1e-4
 max_epochs = 500000
 
 # 更改数据类型
@@ -132,11 +133,39 @@ optimizer_transition = torch.optim.Adam(transition.parameters(), lr=learning_rat
 
 criterion = nn.CrossEntropyLoss()
 # 单点训练
+all_loss = np.zeros([1])
+plt.figure()
 if training_or_testing == 0:
     for epoch in range(max_epochs):
         encoded, (h1, c1), (h2, c2) = encoder.encoder(training_data_input)
         decoded, (h1, c1), (h2, c2) = decoder.decoder(encoded, h1, c1, h2, c2)
         loss = criterion(decoded, training_data_output)
+
+        all_loss[epoch] = loss.item()
+        plt.clf()
+        show = 100
+        cal = 50
+        k = 0.0
+        if np.linspace(0, show, show + 1).shape[0] == all_loss[max([epoch - show, 0]):(epoch + 1)].shape[0]:
+            k, _ = np.polyfit(np.linspace(0, show, show+1), all_loss[max([epoch - show, 0]):(epoch+1)], 1)
+            if abs(k) <= 1e-5:
+                learning_rate = learning_rate / 1.001
+                optimizer_encoder = torch.optim.Adam(encoder.parameters(), lr=learning_rate)
+                optimizer_decoder = torch.optim.Adam(decoder.parameters(), lr=learning_rate)
+                optimizer_transition = torch.optim.Adam(transition.parameters(), lr=learning_rate)
+
+        plt.plot(all_loss[max([epoch - show, 0]):(epoch+1)])
+        plt.plot([show, show], [all_loss[max([epoch - show, 0]):(epoch+1)].min(), all_loss[max([epoch - show, 0]):(epoch+1)].max()], "r--")
+        plt.plot([show - cal, show - cal], [all_loss[max([epoch - show, 0]):(epoch+1)].min(), all_loss[max([epoch - show, 0]):(epoch+1)].max()], "r--")
+        plt.text((show + show - cal) / 2,
+                 (all_loss[max([epoch - show, 0]):(epoch+1)].max() + all_loss[max([epoch - show, 0]):(epoch+1)].min()) / 2,
+                 f"{k:.10f}", fontsize=10)
+        plt.text(show - cal,
+                 (all_loss[max([epoch - show, 0]):(epoch+1)].max() + all_loss[max([epoch - show, 0]):(epoch+1)].min()) / 2,
+                 f"{learning_rate:.10f}", fontsize=10)
+        plt.pause(0.001)
+
+        all_loss = np.append(all_loss, [0.0], axis=0)
         optimizer_encoder.zero_grad()
         optimizer_decoder.zero_grad()
         loss.backward()
