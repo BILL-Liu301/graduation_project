@@ -45,7 +45,8 @@ size_transition_output_fc = size_decoder_input
 
 size_K = 4
 size_delta = training_data_output.shape[1]
-learning_rate = 1e-4
+learning_rate_init = 5e-4
+learning_rate = learning_rate_init
 max_epochs = 500000
 
 # 更改数据类型
@@ -128,13 +129,16 @@ decoder = Decoder(size_decoder_input, size_decoder_hidden_fc, size_decoder_hidde
 transition = Transition(size_transition_input, size_transition_hidden_fc, size_transition_output_fc)
 
 optimizer_encoder = torch.optim.Adam(encoder.parameters(), lr=learning_rate)
+scheduler_encoder = scheduler.StepLR(optimizer_encoder, step_size=50, gamma=0.99, last_epoch=-1)
 optimizer_decoder = torch.optim.Adam(decoder.parameters(), lr=learning_rate)
+scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=50, gamma=0.99, last_epoch=-1)
 optimizer_transition = torch.optim.Adam(transition.parameters(), lr=learning_rate)
 
 criterion = nn.CrossEntropyLoss()
 # 单点训练
 all_loss = np.zeros([1])
-plt.figure()
+lr = np.zeros([1])
+fig = plt.figure()
 if training_or_testing == 0:
     for epoch in range(max_epochs):
         encoded, (h1, c1), (h2, c2) = encoder.encoder(training_data_input)
@@ -143,35 +147,48 @@ if training_or_testing == 0:
 
         all_loss[epoch] = loss.item()
         plt.clf()
-        show = 100
-        cal = 50
+        show = 400
+        cal = 100
         k = 0.0
+        plt.subplot(2, 1, 1)
         if np.linspace(0, show, show + 1).shape[0] == all_loss[max([epoch - show, 0]):(epoch + 1)].shape[0]:
-            k, _ = np.polyfit(np.linspace(0, show, show+1), all_loss[max([epoch - show, 0]):(epoch+1)], 1)
-            if abs(k) <= 1e-5:
-                learning_rate = learning_rate / 1.001
-                optimizer_encoder = torch.optim.Adam(encoder.parameters(), lr=learning_rate)
-                optimizer_decoder = torch.optim.Adam(decoder.parameters(), lr=learning_rate)
-                optimizer_transition = torch.optim.Adam(transition.parameters(), lr=learning_rate)
+            x = np.linspace(0, cal, cal+1)
+            y = all_loss[max([epoch - cal, 0]):(epoch+1)]
+            k, _ = np.polyfit(x, y, 1)
 
+            if abs(k) <= 1e-4 and k <= 0:
+                scheduler_encoder.step()
+                scheduler_decoder.step()
+                learning_rate = scheduler_encoder.get_last_lr()[0]
+                plt.text(show / 5, (all_loss[max([epoch - show, 0]):(epoch+1)].max() + all_loss[max([epoch - show, 0]):(epoch+1)].min()) / 2,
+                         "k is too low", fontsize=10)
+            # if learning_rate <= 5e-5:
+            #     learning_rate = learning_rate_init
+            #     optimizer_encoder = torch.optim.Adam(encoder.parameters(), lr=learning_rate)
+            #     scheduler_encoder = scheduler.StepLR(optimizer_encoder, step_size=50, gamma=0.9, last_epoch=-1)
+            #     optimizer_decoder = torch.optim.Adam(decoder.parameters(), lr=learning_rate)
+            #     scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=50, gamma=0.9, last_epoch=-1)
         plt.plot(all_loss[max([epoch - show, 0]):(epoch+1)])
         plt.plot([show, show], [all_loss[max([epoch - show, 0]):(epoch+1)].min(), all_loss[max([epoch - show, 0]):(epoch+1)].max()], "r--")
         plt.plot([show - cal, show - cal], [all_loss[max([epoch - show, 0]):(epoch+1)].min(), all_loss[max([epoch - show, 0]):(epoch+1)].max()], "r--")
-        plt.text((show + show - cal) / 2,
+        plt.text(show / 2,
                  (all_loss[max([epoch - show, 0]):(epoch+1)].max() + all_loss[max([epoch - show, 0]):(epoch+1)].min()) / 2,
-                 f"{k:.10f}", fontsize=10)
-        plt.text(show - cal,
-                 (all_loss[max([epoch - show, 0]):(epoch+1)].max() + all_loss[max([epoch - show, 0]):(epoch+1)].min()) / 2,
-                 f"{learning_rate:.10f}", fontsize=10)
+                 f"k:{k:.10f}", fontsize=10)
+        plt.subplot(2, 1, 2)
+        lr[epoch] = learning_rate
+        plt.text(show / 2,
+                 (lr[max([epoch - show, 0]):(epoch + 1)].max() + lr[max([epoch - show, 0]):(epoch + 1)].min()) / 2,
+                 f"lr:{learning_rate:.10f}", fontsize=10)
+        plt.plot(lr[max([epoch - show, 0]):(epoch+1)])
         plt.pause(0.001)
 
         all_loss = np.append(all_loss, [0.0], axis=0)
+        lr = np.append(lr, [0.0], axis=0)
         optimizer_encoder.zero_grad()
         optimizer_decoder.zero_grad()
         loss.backward()
-        if (epoch+1) == (max_epochs/2):
-            learning_rate = learning_rate / 10
-        if (epoch+1) % 100 == 0:
+        if (epoch+1) % 50 == 0:
+            fig.savefig("figs/" + str(epoch+1) + ".png")
             print(f"epoch:{epoch+1},loss:{loss.item()}")
             tensorboard_writer.add_scalar("loss", loss.item(), epoch)
         if loss.item() <= 1e-2:
