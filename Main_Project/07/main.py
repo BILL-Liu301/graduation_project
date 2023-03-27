@@ -30,7 +30,7 @@ else:
     print("本次程序只作测试")
 
 # 可调参数
-size_basic = 128
+size_basic = 256
 size_encoder_input = 5
 size_encoder_hidden_fc = size_basic
 size_encoder_hidden_lstm = size_basic
@@ -45,7 +45,7 @@ size_transition_output_fc = size_decoder_input
 
 size_K = 4
 size_delta = training_data_output.shape[1]
-learning_rate_init = 5e-4
+learning_rate_init = 1e-6
 learning_rate = learning_rate_init
 max_epochs = 500000
 
@@ -54,10 +54,10 @@ training_data_input = torch.from_numpy(training_data_input).to(torch.float32).to
 training_data_output = torch.from_numpy(training_data_output).to(torch.float32).to(device)
 testing_data_input = torch.from_numpy(testing_data_input).to(torch.float32).to(device)
 testing_data_output = torch.from_numpy(testing_data_output).to(torch.float32).to(device)
-print(f'training_data_input: {training_data_input.shape}')
-print(f'training_data_output: {training_data_output.shape}')
-print(f'testing_data_input: {testing_data_input.shape}')
-print(f'testing_data_output: {testing_data_output.shape}')
+# print(f'training_data_input: {training_data_input.shape}')
+# print(f'training_data_output: {training_data_output.shape}')
+# print(f'testing_data_input: {testing_data_input.shape}')
+# print(f'testing_data_output: {testing_data_output.shape}')
 
 
 # 编码器
@@ -79,10 +79,10 @@ class Encoder(nn.Module):
         y = self.encoder_fc2(y)
         y = self.encoder_fc3(y)
         y, (h1, c1) = self.encoder_lstm1(y, (h0, c0))
-        y, (h2, c2) = self.encoder_lstm2(y, (h0, c0))
+        # y, (h2, c2) = self.encoder_lstm2(y, (h0, c0))
         y = y[:, -1, :].unsqueeze(1)
 
-        return y, (h1, c1), (h2, c2)
+        return y, (h1, c1), (0, 0)
 
 
 # 解码器
@@ -100,7 +100,7 @@ class Decoder(nn.Module):
 
     def decoder(self, x, h1, c1, h2, c2):
         y, (h1, c1) = self.decoder_lstm1(x, (h1, c1))
-        y, (h2, c2) = self.decoder_lstm2(y, (h2, c2))
+        # y, (h2, c2) = self.decoder_lstm2(y, (h2, c2))
         y = self.decoder_fc1(y)
         y = self.decoder_fc2(y)
         y = self.decoder_fc3(y)
@@ -147,7 +147,7 @@ if training_or_testing == 0:
 
         all_loss[epoch] = loss.item()
         plt.clf()
-        show = 400
+        show = 500
         cal = 100
         k = 0.0
         plt.subplot(2, 1, 1)
@@ -156,7 +156,7 @@ if training_or_testing == 0:
             y = all_loss[max([epoch - cal, 0]):(epoch+1)]
             k, _ = np.polyfit(x, y, 1)
 
-            if abs(k) <= 1e-4 and k <= 0:
+            if abs(k) <= 1e-7 and k <= 0:
                 scheduler_encoder.step()
                 scheduler_decoder.step()
                 learning_rate = scheduler_encoder.get_last_lr()[0]
@@ -191,7 +191,7 @@ if training_or_testing == 0:
             fig.savefig("figs/" + str(epoch+1) + ".png")
             print(f"epoch:{epoch+1},loss:{loss.item()}")
             tensorboard_writer.add_scalar("loss", loss.item(), epoch)
-        if loss.item() <= 1e-2:
+        if loss.item() <= 1:
             torch.save(encoder, str(epoch + 1) + "_encoder_" + str(loss.item()))
             torch.save(decoder, str(epoch + 1) + "_decoder_" + str(loss.item()))
         optimizer_encoder.step()
