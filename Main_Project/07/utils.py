@@ -27,14 +27,14 @@ for row in file_data_lines:
     data[temp, 4] = float(find_data[4])
     temp += 1
 
-batch_size = 10
+seq_size = 50
 hidden_length = 5
-jump_size = int(batch_size / 2)
+jump_size = int(seq_size / 2)
 split_size = 1
 # 滑窗重组
 # data_reshape = np.array([[0, 0.0, 0.0, 0.0, 0.0]])
 # for i in range(0, data.shape[0] - jump_size, jump_size):
-#     for j in range(0, batch_size*split_size, split_size):
+#     for j in range(0, seq_size*split_size, split_size):
 #         data_reshape[-1, :] = np.array(data[i+j, :])
 #         data_reshape = np.r_[data_reshape, np.array([[0, 0.0, 0.0, 0.0, 0.0]])]
 # np.save("data_reshape.npy", data_reshape)
@@ -42,7 +42,7 @@ split_size = 1
 # 加载滑窗重组的结果
 data_reshape = np.load("data_reshape.npy")
 data_reshape = np.delete(data_reshape, [-1], 0)
-data_reshape = np.array(data_reshape.reshape(-1, batch_size, 5))
+data_reshape = np.array(data_reshape.reshape(-1, seq_size, 5))
 dis = np.zeros(data_reshape.shape[0])
 print(f"data_reshape:{data_reshape.shape}")
 
