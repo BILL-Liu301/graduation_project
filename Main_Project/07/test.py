@@ -1,26 +1,33 @@
+import torch
+from torch.utils.data import Dataset, DataLoader
 import numpy as np
-from scipy import fftpack
-import matplotlib.pyplot as plt
 
-time_step = 0.05
-time_vec = np.arange(0, 2, time_step)
-sig = np.sin(2 * np.pi * 5 * time_vec) + np.random.randn(time_vec.size)  # T = 1
 
-sig_fft = fftpack.fft(sig)
+class TrajectoryDataset(Dataset):
+    def __init__(self):
+        self.training_data_input = np.load("training_data_input.npy")
+        self.training_data_output = np.load("training_data_output.npy")
+        self.testing_data_input = np.load("testing_data_input.npy")
+        self.testing_data_output = np.load("testing_data_output.npy")
+        self.sample_training_data_input = self.training_data_input.shape[0]
+        self.sample_training_data_output = self.training_data_output.shape[0]
+        self.sample_testing_data_input = self.testing_data_input.shape[0]
+        self.sample_testing_data_output = self.testing_data_output.shape[0]
 
-Amplitude = np.abs(sig_fft)
-power = Amplitude ** 2
-Angle = np.angle(sig_fft)
+    def __getitem__(self, index):
+        return self.training_data_input[index], \
+            self.training_data_output[index], \
+            self.testing_data_input[index], \
+            self.testing_data_output[index]
 
-sample_freq = fftpack.fftfreq(sig.size, d=time_step)
+    def __len__(self):
+        return self.sample_training_data_input, self.sample_training_data_output, \
+            self.sample_testing_data_input, self.sample_testing_data_output
 
-Amp_freq = np.array([Amplitude, sample_freq])
 
-Amp_pos = Amp_freq[0, :].argmax()
-peak_freq = Amp_freq[1, Amp_pos]
+trajectory = TrajectoryDataset()
+print(trajectory.__len__())
 
-print(peak_freq)
 
-plt.figure()
-plt.plot(sample_freq, Amplitude)
-plt.show()
+
+

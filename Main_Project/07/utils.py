@@ -4,13 +4,13 @@ import torch.nn as nn
 import torch
 import matplotlib.pyplot as plt
 
-Qw = 15
-Ql = 25
-start_x = 20
-start_y = 10
+Qw = 50
+Ql = 50
+start_x = 25
+start_y = 15
 grid_w = 0.1  # y
 grid_l = 0.1  # x
-print(f"Qw * Ql = {Qw * grid_w * Ql * grid_l}m^2")
+# print(f"Qw * Ql = {Qw * grid_w * Ql * grid_l}m^2")
 
 # stamp x y Vx Vy
 file_name = 'source.txt'
@@ -27,7 +27,7 @@ for row in file_data_lines:
     data[temp, 4] = float(find_data[4])
     temp += 1
 
-seq_size = 10
+seq_size = 50
 jump_size = int(seq_size / 2)
 split_size = 1
 # # 滑窗重组
@@ -43,7 +43,7 @@ data_reshape = np.load("data_reshape.npy")
 data_reshape = np.delete(data_reshape, [-1], 0)
 data_reshape = np.array(data_reshape.reshape(-1, seq_size, 5))
 dis = np.zeros(data_reshape.shape[0])
-print(f"data_reshape:{data_reshape.shape}")
+# print(f"data_reshape:{data_reshape.shape}")
 
 # plt.figure()
 # for i in range(dis.shape[0]):
@@ -122,6 +122,9 @@ for i in range(training_data_output.shape[0]):
     for j in range(training_data_output.shape[1]):
         l = training_data_output[i, j, 1]
         w = training_data_output[i, j, 2]
+        if l > Ql or w > Qw:
+            print(f"training data, l:{l}, w:{w}")
+            raise StopIteration
         training_data_output[i, j, 0:3] = 0
         flag = int((w - 1) * Qw + l)
         training_data_output[i, j, flag] = 1
@@ -130,14 +133,23 @@ for i in range(testing_data_output.shape[0]):
     for j in range(testing_data_output.shape[1]):
         l = testing_data_output[i, j, 1]
         w = testing_data_output[i, j, 2]
+        if l > Ql or w > Qw:
+            print(f"testing data, l:{l}, w:{w}")
+            raise StopIteration
         testing_data_output[i, j, 0:3] = 0
         flag = int((w - 1) * Qw + l)
 
         testing_data_output[i, j, flag] = 1
 
+training_data_input = training_data_input[:, :, 1:5]
 training_data_output = np.squeeze(training_data_output, axis=1)
+testing_data_input = testing_data_input[:, :, 1:5]
 testing_data_output = np.squeeze(testing_data_output, axis=1)
 
+# np.save("training_data_input.npy", training_data_input)
+# np.save("training_data_output.npy", training_data_output)
+# np.save("testing_data_input.npy", testing_data_input)
+# np.save("testing_data_output.npy", testing_data_output)
 
 def criterion(predicted, actual):
     middle = torch.zeros([predicted.shape[0], predicted.shape[1], 1, predicted.shape[3]]).to(torch.device('cuda:0'))
