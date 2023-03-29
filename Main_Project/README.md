@@ -43,4 +43,9 @@
 ## 参考了论文Sequence-to-Sequence_Prediction_of_Vehicle_Trajectory_via_LSTM_Encoder-Decoder_Architecture
 ## 只对环境中的某一辆车做二维预测
 ## ![](07/Screenshot from 2023-03-10 09-40-51.png)
-## 15 预测 5
+## 50 预测 1
+## 我真做不出来，换篇论文复现了
+
+--
+# 08
+## 参考了论文[Vehicle_Trajectory_Prediction_Using_LSTMs_With_SpatialTemporal_Attention_Mechanisms.pdf](08%2FVehicle_Trajectory_Prediction_Using_LSTMs_With_SpatialTemporal_Attention_Mechanisms.pdf)

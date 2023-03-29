@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import torch.optim.lr_scheduler as scheduler
 from scipy import fftpack
 
+torch.manual_seed(1)
 torch.cuda.empty_cache()
 gc.collect()
 
@@ -108,8 +109,8 @@ class Decoder(nn.Module):
         y = self.decoder_fc1(self.decoder_relu(y))
         y = self.decoder_fc2(self.decoder_relu(y))
         y = self.decoder_fc3(self.decoder_relu(y))
-        # y = self.decoder_softmax(self.decoder_relu(y))
-        y = self.decoder_sigmoid(y)
+        y = self.decoder_softmax(y)
+        # y = self.decoder_sigmoid(y)
         y = y.squeeze(1)
 
         return y, (h1, c1), (h2, c2)
@@ -135,9 +136,9 @@ decoder = Decoder(size_decoder_input, size_decoder_hidden_fc, size_decoder_hidde
     device)
 transition = Transition(size_transition_input, size_transition_hidden_fc, size_transition_output_fc)
 
-optimizer_encoder = torch.optim.SGD(encoder.parameters(), lr=learning_rate, weight_decay=1.1, momentum=1.01)
+optimizer_encoder = torch.optim.SGD(encoder.parameters(), lr=learning_rate, weight_decay=0.5, momentum=1.01)
 scheduler_encoder = scheduler.StepLR(optimizer_encoder, step_size=100, gamma=0.99, last_epoch=-1)
-optimizer_decoder = torch.optim.SGD(decoder.parameters(), lr=learning_rate, weight_decay=1.1, momentum=1.01)
+optimizer_decoder = torch.optim.SGD(decoder.parameters(), lr=learning_rate, weight_decay=0.5, momentum=1.01)
 scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=100, gamma=0.99, last_epoch=-1)
 optimizer_transition = torch.optim.Adam(transition.parameters(), lr=learning_rate)
 
@@ -156,8 +157,8 @@ if training_or_testing == 0:
 
         all_loss[epoch] = loss.item()
         plt.clf()
-        show = 200
-        cal = 100
+        show = 350
+        cal = 200
         k = [0.0]
         t = 0.0
         plt.subplot(2, 2, 1)
@@ -168,13 +169,16 @@ if training_or_testing == 0:
 
             y_fft = fftpack.fft(y)
             sample_freq = fftpack.fftfreq(y.size, d=(split_size / 100))
-            Amplitude = np.abs(sample_freq)
+            Amplitude = np.abs(y_fft)
             Amp_freq = np.array([Amplitude, sample_freq])
-            Amp_pos = Amp_freq[0, :].argmax()
+            Amp_pos = Amp_freq[0, :].argsort()[-2]
             peak_freq = Amp_freq[1, Amp_pos]
-            t = 1 / peak_freq
+            if Amp_freq[0, Amp_pos] >= 20:
+                t = 1 / abs(peak_freq)
+            else:
+                t = 0.0
 
-            if abs(k[0]) <= learning_rate and k[0] <= 0:
+            if (abs(k[0]) <= learning_rate and k[0] <= 0) or t != 0:
                 scheduler_encoder.step()
                 scheduler_decoder.step()
                 learning_rate = scheduler_encoder.get_last_lr()[0]

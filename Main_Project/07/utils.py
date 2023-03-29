@@ -27,7 +27,7 @@ for row in file_data_lines:
     data[temp, 4] = float(find_data[4])
     temp += 1
 
-seq_size = 50
+seq_size = 10
 jump_size = int(seq_size / 2)
 split_size = 1
 # # 滑窗重组
@@ -97,18 +97,18 @@ testing_data_input[:, :, 1] = testing_data_input[:, :, 1] // grid_l + start_x
 testing_data_input[:, :, 2] = testing_data_input[:, :, 2] // grid_w + start_y
 # testing_data_output[:, :, 0] = testing_data_output[:, :, 0] // grid_l + start_x
 # testing_data_output[:, :, 1] = testing_data_output[:, :, 1] // grid_w + start_y
-testing_data_output[:, :, 0] = testing_data_output[:, :, 1] // grid_l + start_x
-testing_data_output[:, :, 1] = testing_data_output[:, :, 2] // grid_w + start_y
+testing_data_output[:, :, 1] = testing_data_output[:, :, 1] // grid_l + start_x
+testing_data_output[:, :, 2] = testing_data_output[:, :, 2] // grid_w + start_y
 
 # print(training_data_input[:, :, 1].min(), training_data_input[:, :, 2].min())
-# print(training_data_output[:, :, 0].min(), training_data_output[:, :, 1].min())
+# print(training_data_output[:, :, 1].min(), training_data_output[:, :, 2].min())
 # print(testing_data_input[:, :, 1].min(), testing_data_input[:, :, 2].min())
-# print(testing_data_output[:, :, 0].min(), testing_data_output[:, :, 1].min())
+# print(testing_data_output[:, :, 1].min(), testing_data_output[:, :, 2].min())
 #
 # print(training_data_input[:, :, 1].max(), training_data_input[:, :, 2].max())
-# print(training_data_output[:, :, 0].max(), training_data_output[:, :, 1].max())
+# print(training_data_output[:, :, 1].max(), training_data_output[:, :, 2].max())
 # print(testing_data_input[:, :, 1].max(), testing_data_input[:, :, 2].max())
-# print(testing_data_output[:, :, 0].max(), testing_data_output[:, :, 1].max())
+# print(testing_data_output[:, :, 1].max(), testing_data_output[:, :, 2].max())
 
 
 # plt.figure()
