@@ -30,7 +30,7 @@ for row in file_data_lines:
 seq_size = 50
 jump_size = int(seq_size / 2)
 split_size = 1
-# # 滑窗重组
+# 滑窗重组
 # data_reshape = np.array([[0, 0.0, 0.0, 0.0, 0.0]])
 # for i in range(0, data.shape[0] - jump_size, jump_size):
 #     for j in range(0, seq_size*split_size, split_size):

@@ -64,24 +64,23 @@ class Encoder(nn.Module):
         super(Encoder, self).__init__()
         self.encoder_hidden_size_lstm = encoder_hidden_size_lstm
         self.encoder_fc1 = nn.Linear(encoder_input_size, encoder_hidden_size_fc, bias=True)
-        self.encoder_fc2 = nn.Linear(encoder_hidden_size_fc, encoder_hidden_size_fc, bias=True)
-        self.encoder_fc3 = nn.Linear(encoder_hidden_size_fc, encoder_hidden_size_fc, bias=True)
+        # self.encoder_fc2 = nn.Linear(encoder_hidden_size_fc, encoder_hidden_size_fc, bias=True)
+        # self.encoder_fc3 = nn.Linear(encoder_hidden_size_fc, encoder_hidden_size_fc, bias=True)
         self.encoder_fc4 = nn.Linear(encoder_hidden_size_fc, encoder_hidden_size_fc, bias=True)
         self.encoder_activate = nn.PReLU(num_parameters=50, init=0.5)
         # self.encoder_activate = nn.Tanh()
-        self.encoder_lstm1 = nn.LSTM(encoder_hidden_size_fc, encoder_hidden_size_lstm, num_layers=1, batch_first=True)
-        self.encoder_lstm2 = nn.LSTM(encoder_hidden_size_fc, encoder_output_size_lstm, num_layers=1, batch_first=True)
+        self.encoder_lstm1 = nn.LSTM(encoder_hidden_size_fc, encoder_output_size_lstm, num_layers=1, batch_first=True)
 
     def encoder(self, x):
-        h0 = 10.0 * torch.ones(1, x.size(0), self.encoder_hidden_size_lstm).to(device)
-        h0 = torch.normal(mean=0.0, std=h0)
-        c0 = 10.0 * torch.ones(1, x.size(0), self.encoder_hidden_size_lstm).to(device)
-        c0 = torch.normal(mean=0.0, std=c0)
+        h0 = 5.0 * torch.ones(1, x.size(0), self.encoder_hidden_size_lstm).to(device)
+        h0 = torch.normal(mean=h0, std=h0)
+        c0 = 5.0 * torch.ones(1, x.size(0), self.encoder_hidden_size_lstm).to(device)
+        c0 = torch.normal(mean=c0, std=c0)
 
         y = self.encoder_fc1(self.encoder_activate(x))
         # y = self.encoder_fc2(self.encoder_activate(y))
         # y = self.encoder_fc3(self.encoder_activate(y))
-        # y = self.encoder_fc4(self.encoder_activate(y))
+        y = self.encoder_fc4(self.encoder_activate(y))
         y, (h1, c1) = self.encoder_lstm1(self.encoder_activate(y), (h0, c0))
         y = y[:, -1, :].unsqueeze(1)
 
@@ -93,15 +92,14 @@ class Decoder(nn.Module):
     def __init__(self, decoder_input_size, decoder_hidden_size_fc, decoder_hidden_size_lstm, decoder_output_size_fc):
         super(Decoder, self).__init__()
         self.decoder_lstm1 = nn.LSTM(decoder_input_size, decoder_hidden_size_lstm, num_layers=1, batch_first=True)
-        self.decoder_lstm2 = nn.LSTM(decoder_hidden_size_lstm, decoder_hidden_size_lstm, num_layers=1, batch_first=True)
         self.decoder_fc1 = nn.Linear(decoder_hidden_size_lstm, decoder_hidden_size_fc, bias=True)
-        self.decoder_fc2 = nn.Linear(decoder_hidden_size_fc, decoder_hidden_size_fc, bias=True)
-        self.decoder_fc3 = nn.Linear(decoder_hidden_size_fc, decoder_hidden_size_fc, bias=True)
+        # self.decoder_fc2 = nn.Linear(decoder_hidden_size_fc, decoder_hidden_size_fc, bias=True)
+        # self.decoder_fc3 = nn.Linear(decoder_hidden_size_fc, decoder_hidden_size_fc, bias=True)
         self.decoder_fc4 = nn.Linear(decoder_hidden_size_fc, decoder_output_size_fc, bias=True)
         self.decoder_activate = nn.PReLU(num_parameters=1, init=1)
         # self.decoder_activate = nn.Tanh()
         self.decoder_softmax = nn.Softmax(dim=2)
-        self.decoder_sigmoid = nn.Sigmoid()
+        # self.decoder_sigmoid = nn.Sigmoid()
 
     def decoder(self, x, h1, c1):
         y, (h1, c1) = self.decoder_lstm1(x, (h1, c1))
@@ -109,13 +107,10 @@ class Decoder(nn.Module):
         # y = self.decoder_fc2(self.decoder_activate(y))
         # y = self.decoder_fc3(self.decoder_activate(y))
         y = self.decoder_fc4(self.decoder_activate(y))
-        m = y
-        n = self.decoder_fc4.weight
         y = self.decoder_softmax(y)
-        # y = self.decoder_sigmoid(y)
         y = y.squeeze(1)
 
-        return y, (h1, c1), m, n
+        return y, (h1, c1)
 
 
 # 过渡器
@@ -138,6 +133,9 @@ decoder = Decoder(size_decoder_input, size_decoder_hidden_fc, size_decoder_hidde
     device)
 transition = Transition(size_transition_input, size_transition_hidden_fc, size_transition_output_fc)
 
+print(encoder)
+print(decoder)
+
 optimizer_encoder = torch.optim.Adam(encoder.parameters(), lr=learning_rate)
 scheduler_encoder = scheduler.StepLR(optimizer_encoder, step_size=50, gamma=0.8, last_epoch=-1)
 optimizer_decoder = torch.optim.Adam(decoder.parameters(), lr=learning_rate)
@@ -149,11 +147,12 @@ criterion = nn.CrossEntropyLoss()
 all_loss = np.zeros([1])
 lr = np.zeros([1])
 k_all = np.zeros([1])
+grad_min = np.zeros([1])
 fig = plt.figure()
 if training_or_testing == 0:
     for epoch in range(max_epochs):
         encoded, (h1, c1) = encoder.encoder(training_data_input)
-        decoded, (h1, c1), m, n = decoder.decoder(encoded, h1, c1)
+        decoded, (h1, c1) = decoder.decoder(encoded, h1, c1)
         loss = criterion(decoded, training_data_output)
 
         all_loss[epoch] = loss.item()
@@ -161,7 +160,8 @@ if training_or_testing == 0:
         show = 300
         cal = 200
         k = [0.0]
-        plt.subplot(2, 2, 1)
+        grad = np.array([0.0])
+        plt.subplot(3, 2, 1)
         if (show + 1) == all_loss[max([epoch - show, 0]):(epoch + 1)].shape[0]:
             x = np.linspace(0, cal, cal + 1)
             y = all_loss[max([epoch - cal, 0]):(epoch + 1)]
@@ -183,14 +183,14 @@ if training_or_testing == 0:
         plt.plot([show - cal, show - cal], [all_loss[max([epoch - show, 0]):(epoch + 1)].min(),
                                             all_loss[max([epoch - show, 0]):(epoch + 1)].max()], "r--")
 
-        plt.subplot(2, 2, 2)
+        plt.subplot(3, 2, 2)
         lr[epoch] = learning_rate
         plt.text(show / 2,
                  (lr[max([epoch - show, 0]):(epoch + 1)].max() + lr[max([epoch - show, 0]):(epoch + 1)].min()) / 2,
                  f"lr:{learning_rate:.10f}", fontsize=10)
         plt.plot(lr[max([epoch - show, 0]):(epoch + 1)])
 
-        plt.subplot(2, 2, 3)
+        plt.subplot(3, 2, 3)
         # for i in range(10, 20, 5):
         #     plt.plot(n[i, :].cpu().detach().numpy(), "*")
         k_all[epoch] = k[0]
@@ -199,7 +199,7 @@ if training_or_testing == 0:
                  (k_all.max() + k_all.min()) / 2,
                  f"k:{k[0]:.10f}", fontsize=10)
 
-        plt.subplot(2, 2, 4)
+        plt.subplot(3, 2, 4)
         for i in range(training_data_output.shape[0]):
             # plt.plot(find_l(decoded[i, :].cpu().detach().argmax()).numpy(),
             #          find_w(decoded[i, :].cpu().detach().argmax()).numpy(), "*")
@@ -210,6 +210,24 @@ if training_or_testing == 0:
 
         # para = list(encoder.parameters())[1].cpu().detach().numpy()
         # plt.plot(para, "*")
+
+        plt.subplot(3, 2, 5)
+        with torch.no_grad():
+            para = list(encoder.parameters())
+            for g in encoder.parameters():
+                temp, _ = torch.sort(g.abs(), descending=False)
+                grad = np.append(grad, temp[0:10].cpu().detach().numpy())
+            for g in decoder.parameters():
+                temp, _ = torch.sort(g.abs(), descending=False)
+                grad = np.append(grad, temp[0:10].cpu().detach().numpy())
+            grad = np.delete(grad, 0, axis=0)
+            grad_min = np.append(grad_min, grad)
+            print(grad_min[-show:-1])
+            plt.plot(grad_min[-show:-1], "*")
+            plt.plot([show, show], [all_loss[max([epoch - show, 0]):(epoch + 1)].min(),
+                                    all_loss[max([epoch - show, 0]):(epoch + 1)].max()], "r--")
+            plt.plot([show - cal, show - cal], [all_loss[max([epoch - show, 0]):(epoch + 1)].min(),
+                                                all_loss[max([epoch - show, 0]):(epoch + 1)].max()], "r--")
 
         plt.pause(0.001)
 
