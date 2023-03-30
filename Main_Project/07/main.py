@@ -43,7 +43,7 @@ size_transition_output_fc = size_decoder_input
 
 size_K = 4
 size_delta = training_data_output.shape[1]
-learning_rate_init = 2
+learning_rate_init = 1e-3
 learning_rate = learning_rate_init
 max_epochs = 100000
 
@@ -63,24 +63,25 @@ class Encoder(nn.Module):
     def __init__(self, encoder_input_size, encoder_hidden_size_fc, encoder_hidden_size_lstm, encoder_output_size_lstm):
         super(Encoder, self).__init__()
         self.encoder_hidden_size_lstm = encoder_hidden_size_lstm
-        self.encoder_fc1 = nn.Linear(encoder_input_size, encoder_hidden_size_fc)
-        self.encoder_fc2 = nn.Linear(encoder_hidden_size_fc, encoder_hidden_size_fc)
-        self.encoder_fc3 = nn.Linear(encoder_hidden_size_fc, encoder_hidden_size_fc)
-        self.encoder_fc4 = nn.Linear(encoder_hidden_size_fc, encoder_hidden_size_fc)
-        self.encoder_activate = nn.PReLU(num_parameters=50, init=1)
-        self.encoder_lstm1 = nn.LSTM(encoder_hidden_size_fc, encoder_hidden_size_lstm, num_layers=2, batch_first=True)
+        self.encoder_fc1 = nn.Linear(encoder_input_size, encoder_hidden_size_fc, bias=True)
+        self.encoder_fc2 = nn.Linear(encoder_hidden_size_fc, encoder_hidden_size_fc, bias=True)
+        self.encoder_fc3 = nn.Linear(encoder_hidden_size_fc, encoder_hidden_size_fc, bias=True)
+        self.encoder_fc4 = nn.Linear(encoder_hidden_size_fc, encoder_hidden_size_fc, bias=True)
+        self.encoder_activate = nn.PReLU(num_parameters=50, init=0.5)
+        # self.encoder_activate = nn.Tanh()
+        self.encoder_lstm1 = nn.LSTM(encoder_hidden_size_fc, encoder_hidden_size_lstm, num_layers=1, batch_first=True)
         self.encoder_lstm2 = nn.LSTM(encoder_hidden_size_fc, encoder_output_size_lstm, num_layers=1, batch_first=True)
 
     def encoder(self, x):
-        h0 = 10.0 * torch.ones(2, x.size(0), self.encoder_hidden_size_lstm).to(device)
+        h0 = 10.0 * torch.ones(1, x.size(0), self.encoder_hidden_size_lstm).to(device)
         h0 = torch.normal(mean=0.0, std=h0)
-        c0 = 10.0 * torch.ones(2, x.size(0), self.encoder_hidden_size_lstm).to(device)
+        c0 = 10.0 * torch.ones(1, x.size(0), self.encoder_hidden_size_lstm).to(device)
         c0 = torch.normal(mean=0.0, std=c0)
 
         y = self.encoder_fc1(self.encoder_activate(x))
-        y = self.encoder_fc2(self.encoder_activate(y))
-        y = self.encoder_fc3(self.encoder_activate(y))
-        y = self.encoder_fc4(self.encoder_activate(y))
+        # y = self.encoder_fc2(self.encoder_activate(y))
+        # y = self.encoder_fc3(self.encoder_activate(y))
+        # y = self.encoder_fc4(self.encoder_activate(y))
         y, (h1, c1) = self.encoder_lstm1(self.encoder_activate(y), (h0, c0))
         y = y[:, -1, :].unsqueeze(1)
 
@@ -91,21 +92,22 @@ class Encoder(nn.Module):
 class Decoder(nn.Module):
     def __init__(self, decoder_input_size, decoder_hidden_size_fc, decoder_hidden_size_lstm, decoder_output_size_fc):
         super(Decoder, self).__init__()
-        self.decoder_lstm1 = nn.LSTM(decoder_input_size, decoder_hidden_size_lstm, num_layers=2, batch_first=True)
+        self.decoder_lstm1 = nn.LSTM(decoder_input_size, decoder_hidden_size_lstm, num_layers=1, batch_first=True)
         self.decoder_lstm2 = nn.LSTM(decoder_hidden_size_lstm, decoder_hidden_size_lstm, num_layers=1, batch_first=True)
-        self.decoder_fc1 = nn.Linear(decoder_hidden_size_lstm, decoder_hidden_size_fc)
-        self.decoder_fc2 = nn.Linear(decoder_hidden_size_fc, decoder_hidden_size_fc)
-        self.decoder_fc3 = nn.Linear(decoder_hidden_size_fc, decoder_hidden_size_fc)
-        self.decoder_fc4 = nn.Linear(decoder_hidden_size_fc, decoder_output_size_fc)
+        self.decoder_fc1 = nn.Linear(decoder_hidden_size_lstm, decoder_hidden_size_fc, bias=True)
+        self.decoder_fc2 = nn.Linear(decoder_hidden_size_fc, decoder_hidden_size_fc, bias=True)
+        self.decoder_fc3 = nn.Linear(decoder_hidden_size_fc, decoder_hidden_size_fc, bias=True)
+        self.decoder_fc4 = nn.Linear(decoder_hidden_size_fc, decoder_output_size_fc, bias=True)
         self.decoder_activate = nn.PReLU(num_parameters=1, init=1)
+        # self.decoder_activate = nn.Tanh()
         self.decoder_softmax = nn.Softmax(dim=2)
         self.decoder_sigmoid = nn.Sigmoid()
 
     def decoder(self, x, h1, c1):
         y, (h1, c1) = self.decoder_lstm1(x, (h1, c1))
         y = self.decoder_fc1(self.decoder_activate(y))
-        y = self.decoder_fc2(self.decoder_activate(y))
-        y = self.decoder_fc3(self.decoder_activate(y))
+        # y = self.decoder_fc2(self.decoder_activate(y))
+        # y = self.decoder_fc3(self.decoder_activate(y))
         y = self.decoder_fc4(self.decoder_activate(y))
         m = y
         n = self.decoder_fc4.weight
@@ -137,9 +139,9 @@ decoder = Decoder(size_decoder_input, size_decoder_hidden_fc, size_decoder_hidde
 transition = Transition(size_transition_input, size_transition_hidden_fc, size_transition_output_fc)
 
 optimizer_encoder = torch.optim.Adam(encoder.parameters(), lr=learning_rate)
-scheduler_encoder = scheduler.StepLR(optimizer_encoder, step_size=10, gamma=0.99, last_epoch=-1)
+scheduler_encoder = scheduler.StepLR(optimizer_encoder, step_size=50, gamma=0.8, last_epoch=-1)
 optimizer_decoder = torch.optim.Adam(decoder.parameters(), lr=learning_rate)
-scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=10, gamma=0.99, last_epoch=-1)
+scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=50, gamma=0.8, last_epoch=-1)
 optimizer_transition = torch.optim.Adam(transition.parameters(), lr=learning_rate)
 
 criterion = nn.CrossEntropyLoss()
@@ -167,7 +169,7 @@ if training_or_testing == 0:
                 print(y)
             k = np.polyfit(x, y, 1)
 
-            if abs(k[0]) <= 1e-4 and k[0] <= 0:
+            if abs(k[0]) <= 1e-5 and k[0] <= 0:
                 scheduler_encoder.step()
                 scheduler_decoder.step()
                 learning_rate = scheduler_encoder.get_last_lr()[0]
@@ -189,22 +191,22 @@ if training_or_testing == 0:
         plt.plot(lr[max([epoch - show, 0]):(epoch + 1)])
 
         plt.subplot(2, 2, 3)
-        for i in range(10, 20, 5):
-            plt.plot(n[i, :].cpu().detach().numpy(), "*")
-        # k_all[epoch] = k[0]
-        # plt.plot(k_all)
-        # plt.text(k_all.shape[0] / 2,
-        #          (k_all.max() + k_all.min()) / 2,
-        #          f"k:{k[0]:.10f}", fontsize=10)
+        # for i in range(10, 20, 5):
+        #     plt.plot(n[i, :].cpu().detach().numpy(), "*")
+        k_all[epoch] = k[0]
+        plt.plot(k_all)
+        plt.text(k_all.shape[0] / 2,
+                 (k_all.max() + k_all.min()) / 2,
+                 f"k:{k[0]:.10f}", fontsize=10)
 
         plt.subplot(2, 2, 4)
-        for i in range(10, 100, 5):
-            plt.plot(find_l(decoded[i, :].cpu().detach().argmax()).numpy(),
-                     find_w(decoded[i, :].cpu().detach().argmax()).numpy(), "*")
-            # plt.plot(np.append(find_l(training_data_output[i, :].cpu().detach().nonzero()).numpy(),
-            #                    find_l(decoded[i, :].cpu().detach().argmax()).numpy()),
-            #          np.append(find_w(training_data_output[i, :].cpu().detach().nonzero()).numpy(),
-            #                    find_w(decoded[i, :].cpu().detach().argmax()).numpy()))
+        for i in range(training_data_output.shape[0]):
+            # plt.plot(find_l(decoded[i, :].cpu().detach().argmax()).numpy(),
+            #          find_w(decoded[i, :].cpu().detach().argmax()).numpy(), "*")
+            plt.plot(np.append(find_l(training_data_output[i, :].cpu().detach().nonzero()).numpy(),
+                               find_l(decoded[i, :].cpu().detach().argmax()).numpy()),
+                     np.append(find_w(training_data_output[i, :].cpu().detach().nonzero()).numpy(),
+                               find_w(decoded[i, :].cpu().detach().argmax()).numpy()))
 
         # para = list(encoder.parameters())[1].cpu().detach().numpy()
         # plt.plot(para, "*")
@@ -219,7 +221,7 @@ if training_or_testing == 0:
         optimizer_decoder.zero_grad()
         loss.backward()
 
-        if (epoch + 1) % 1 == 0:
+        if (epoch + 1) % 20 == 0:
             fig.savefig("figs/" + str(epoch + 1) + ".png")
             print(f"epoch:{epoch + 1},loss:{loss.item()}")
             # tensorboard_writer.add_scalar("loss", loss.item(), epoch)
@@ -229,6 +231,10 @@ if training_or_testing == 0:
 
         optimizer_encoder.step()
         optimizer_decoder.step()
+
+        rand_para = torch.randperm(training_data_input.shape[0])
+        training_data_input = training_data_input[rand_para]
+        training_data_output = training_data_output[rand_para]
 
     plt.show()
     torch.save(encoder, "end_encoder")

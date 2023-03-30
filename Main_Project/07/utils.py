@@ -85,6 +85,33 @@ for i in range(testing_data_output.shape[0]):
 # training_data_output = training_data_output[:, :, 1:3]
 # testing_data_output = testing_data_output[:, :, 1:3]
 
+# # 标准化
+# for i in range(training_data_input.shape[0]):
+#     mean = training_data_input[i, :, 1].mean()
+#     var = training_data_input[i, :, 1].var() + 1e-12
+#     training_data_input[i, :, 1] = 0.001 * (training_data_input[i, :, 1] - mean) / var
+#     for j in range(training_data_output.shape[1]):
+#         training_data_output[i, j, 1] = 0.001 * (training_data_output[i, j, 1] - mean) / var
+#
+#     mean = training_data_input[i, :, 2].mean()
+#     var = training_data_input[i, :, 2].var() + 1e-12
+#     training_data_input[i, :, 2] = 0.001 * (training_data_input[i, :, 2] - mean) / var
+#     for j in range(training_data_output.shape[1]):
+#         training_data_output[i, j, 2] = 0.001 * (training_data_output[i, j, 2] - mean) / var
+#
+# for i in range(testing_data_input.shape[0]):
+#     mean = testing_data_input[i, :, 1].mean()
+#     var = testing_data_input[i, :, 1].var() + 1e-12
+#     testing_data_input[i, :, 1] = 0.001 * (testing_data_input[i, :, 1] - mean) / var
+#     for j in range(testing_data_output.shape[1]):
+#         testing_data_output[i, j, 1] = 0.001 * (testing_data_output[i, j, 1] - mean) / var
+#
+#     mean = testing_data_input[i, :, 2].mean()
+#     var = testing_data_input[i, :, 2].var() + 1e-12
+#     testing_data_input[i, :, 2] = 0.001 * (testing_data_input[i, :, 2] - mean) / var
+#     for j in range(testing_data_output.shape[1]):
+#         testing_data_output[i, j, 2] = 0.001 * (testing_data_output[i, j, 2] - mean) / var
+
 # 栅格化,观测车辆在最初点的左下（5m，5m）的位置，车辆原点在Qw*Ql这个矩形的最下边中心
 training_data_input[:, :, 1] = training_data_input[:, :, 1] // grid_l + start_x
 training_data_input[:, :, 2] = training_data_input[:, :, 2] // grid_w + start_y
@@ -145,6 +172,7 @@ training_data_input = training_data_input[:, :, 1:5]
 training_data_output = np.squeeze(training_data_output, axis=1)
 testing_data_input = testing_data_input[:, :, 1:5]
 testing_data_output = np.squeeze(testing_data_output, axis=1)
+
 
 # np.save("training_data_input.npy", training_data_input)
 # np.save("training_data_output.npy", training_data_output)
