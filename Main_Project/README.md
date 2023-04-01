@@ -48,4 +48,5 @@
 
 --
 # 08
-## 参考了论文[Vehicle_Trajectory_Prediction_Using_LSTMs_With_SpatialTemporal_Attention_Mechanisms.pdf](08%2FVehicle_Trajectory_Prediction_Using_LSTMs_With_SpatialTemporal_Attention_Mechanisms.pdf)
+## 重新定义模型框架
+## 单点预测，先跑起来再说
