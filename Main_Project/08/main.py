@@ -26,7 +26,7 @@ print(f'testing_data_input: {testing_data_input.shape}')
 print(f'testing_data_output: {testing_data_output.shape}')
 
 # 定义基本参数
-size_basic = 128
+size_basic = 256
 size_encoder_fc_input = data_size - 1  # 减去index
 size_encoder_fc_middle = size_basic
 size_encoder_fc_output = size_basic
@@ -45,7 +45,7 @@ size_connector_fc_middle = size_basic
 size_connector_fc_output = size_decoder_lstm_input
 
 learning_rate = 1e-4
-max_epoch = 50000
+max_epoch = 5000
 
 
 # 定义编码器
@@ -147,17 +147,17 @@ optimizer_connector = optim.Adam(connector.parameters(), lr=learning_rate)
 criterion = nn.L1Loss()
 
 # 模式选取
-mode_switch = 2
+mode_switch = 3
 
 # 主要部分
+fig = plt.figure()
 if mode_switch == 0:
     print("进行单点模型训练")
-    plt.figure()
     all_loss = np.zeros([1])
     for epoch in range(max_epoch):
         encoded, (h_encoded, c_encoded) = encoder(training_data_input)
         decoded, _ = decoder(encoded, h_encoded, c_encoded)
-        loss = criterion(decoded, training_data_output) * training_data_output.shape[0]
+        loss = criterion(decoded, training_data_output[:, 0, :].unsqueeze(1)) * training_data_output.shape[0]
 
         plt.clf()
         show = 150
@@ -173,9 +173,9 @@ if mode_switch == 0:
 
         plt.subplot(1, 2, 2)
         for i in range(training_data_output.shape[0]):
-            plt.plot(np.append(training_data_output.cpu().detach().numpy()[i, :, 0],
+            plt.plot(np.append(training_data_output.cpu().detach().numpy()[i, 0, 0],
                                decoded.cpu().detach().numpy()[i, :, 0]),
-                     np.append(training_data_output.cpu().detach().numpy()[i, :, 1],
+                     np.append(training_data_output.cpu().detach().numpy()[i, 0, 1],
                                decoded.cpu().detach().numpy()[i, :, 1]))
 
         all_loss = np.append(all_loss, [0.0], axis=0)
@@ -198,8 +198,8 @@ if mode_switch == 0:
 
     torch.save(encoder, "end_encoder.pth")
     torch.save(decoder, "end_decoder.pth")
-    plt.show()
-elif mode_switch == 1:
+    fig.savefig("figs/" + "single.png")
+if mode_switch == 1:
     print("单点模型测试")
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")
@@ -209,19 +209,17 @@ elif mode_switch == 1:
     loss = criterion(decoded, testing_data_output) * testing_data_output.shape[0]
     print(loss.item())
 
-    plt.figure()
     for i in range(testing_data_output.shape[0]):
         plt.plot(np.append(testing_data_output.cpu().detach().numpy()[i, :, 0],
                            decoded.cpu().detach().numpy()[i, :, 0]),
                  np.append(testing_data_output.cpu().detach().numpy()[i, :, 1],
                            decoded.cpu().detach().numpy()[i, :, 1]))
     plt.show()
-elif mode_switch == 2:
+if mode_switch == 2:
     print("进行连接模型训练")
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")
 
-    plt.figure()
     all_loss = np.zeros([1])
     for points in range(1, training_data_output.shape[1], 1):
         for epoch in range(max_epoch):
@@ -267,10 +265,10 @@ elif mode_switch == 2:
             rand_para = torch.randperm(training_data_input.shape[0])
             training_data_input = training_data_input[rand_para]
             training_data_output = training_data_output[rand_para]
+        fig.savefig("figs/" + str(points + 1) + ".png")
 
     torch.save(connector, "end_connector.pth")
-    plt.show()
-elif mode_switch == 3:
+if mode_switch == 3:
     print("循环预测模型测试")
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")
@@ -289,12 +287,11 @@ elif mode_switch == 3:
             output[j, i, 0] = decoded[j, 0, 0]
             output[j, i, 1] = decoded[j, 0, 1]
 
-    plt.figure()
     for i in range(output.shape[0]):
         plt.clf()
         plt.plot(output[i, :, 0], output[i, :, 0], "*")
         plt.plot(check_input.cpu().detach().numpy()[i, :, 0], check_input.cpu().detach().numpy()[i, :, 1])
         plt.plot(check_output.cpu().detach().numpy()[i, :, 0], check_output.cpu().detach().numpy()[i, :, 1])
-        plt.pause(0.01)
+        plt.pause(0.1)
 
 
