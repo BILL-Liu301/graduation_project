@@ -37,9 +37,9 @@ data_reshape = np.delete(data_reshape, [-1], 0)
 data_reshape = np.array(data_reshape.reshape(-1, seq_size, data_size))
 
 # 分割input和output
-input_size = int(0.5 * seq_size)
+input_size = int(0.8 * seq_size)
 output_size = seq_size - input_size
-train_size = int(0.5 * data_reshape.shape[0])
+train_size = int(0.3 * data_reshape.shape[0])
 test_size = data_reshape.shape[0] - train_size
 
 training_data_input = np.array(data_reshape[0:train_size, 0:input_size, :])
@@ -67,12 +67,6 @@ for i in range(testing_data_input.shape[0]):
         testing_data_input[i, j, 1] = testing_data_input[i, j, 1] - testing_data_input[i, -1, 1]
         testing_data_input[i, j, 2] = testing_data_input[i, j, 2] - testing_data_input[i, -1, 2]
 
-# 移除index参数
-training_data_input = np.array(training_data_input[:, :, 1:5])
-training_data_output = np.array(training_data_output[:, :, 1:3])
-testing_data_input = np.array(testing_data_input[:, :, 1:5])
-testing_data_output = np.array(testing_data_output[:, :, 1:3])
-
 # plt.figure()
 # for i in range(training_data_input.shape[0]):
 #     plt.clf()
@@ -81,3 +75,10 @@ testing_data_output = np.array(testing_data_output[:, :, 1:3])
 #              [training_data_input[i, -1, 2], training_data_input[i, -1, 2]], "r--")
 #     plt.plot(training_data_output[i, :, 1], training_data_output[i, :, 2], ".")
 #     plt.pause(0.01)
+
+# 移除index参数
+training_data_input = np.array(training_data_input[:, :, 1:5])
+training_data_output = np.array(training_data_output[:, :, 1:3])
+testing_data_input = np.array(testing_data_input[:, :, 1:5])
+testing_data_output = np.array(testing_data_output[:, :, 1:3])
+

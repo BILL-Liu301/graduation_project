@@ -136,11 +136,15 @@ class Connector(nn.Module):
         self.connector_fc1 = nn.Linear(connector_fc_input_size, connector_fc_middle_size, bias=self.connector_bias)
         self.connector_fc2 = nn.Linear(connector_fc_middle_size, connector_fc_middle_size, bias=self.connector_bias)
         self.connector_fc3 = nn.Linear(connector_fc_middle_size, connector_fc_output_size, bias=self.connector_bias)
+        self.connector_fc4 = nn.Linear(connector_fc_middle_size, connector_fc_output_size, bias=self.connector_bias)
+        self.connector_fc5 = nn.Linear(connector_fc_middle_size, connector_fc_output_size, bias=self.connector_bias)
 
     def forward(self, x):
         out = self.connector_fc1(x)
         out = self.connector_fc2(out)
         out = self.connector_fc3(out)
+        out = self.connector_fc4(out)
+        out = self.connector_fc5(out)
         return out
 
 
@@ -158,7 +162,7 @@ optimizer_connector = optim.Adam(connector.parameters(), lr=learning_rate)
 criterion = nn.MSELoss()
 
 # 模式选取
-mode_switch = 1
+mode_switch = int(input("请进行模式选择："))
 
 # 主要部分
 fig = plt.figure()
@@ -190,7 +194,7 @@ if mode_switch == 0:
                  f"lr:{learning_rate:.10f}", fontsize=10)
 
         plt.subplot(1, 2, 2)
-        for i in range(training_data_output.shape[0]):
+        for i in range(20):
             plt.plot(np.append(training_data_output.cpu().detach().numpy()[i, 0, 0],
                                decoded.cpu().detach().numpy()[i, :, 0]),
                      np.append(training_data_output.cpu().detach().numpy()[i, 0, 1],
@@ -248,7 +252,7 @@ if mode_switch == 2:
 
     for points in range(1, training_data_output.shape[1], 1):
         learning_rate = learning_rate_init
-        optimizer_decoder = optim.Adam(decoder.parameters(), lr=(learning_rate / (points * 3)))
+        optimizer_decoder = optim.Adam(decoder.parameters(), lr=(learning_rate / (points * 10)))
         optimizer_connector = optim.Adam(connector.parameters(), lr=learning_rate)
         scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=100, gamma=0.7, last_epoch=-1)
         scheduler_connector = scheduler.StepLR(optimizer_connector, step_size=100, gamma=0.7, last_epoch=-1)
@@ -281,7 +285,7 @@ if mode_switch == 2:
                      f"lr:{learning_rate:.10f}", fontsize=10)
 
             plt.subplot(1, 2, 2)
-            for i in range(1):
+            for i in range(20):
                 plt.plot(training_data_output.cpu().detach().numpy()[i, 0:(points + 1), 0],
                          training_data_output.cpu().detach().numpy()[i, 0:(points + 1), 1])
                 plt.plot(decoded_clone.cpu().detach().numpy()[i, :, 0],
@@ -291,15 +295,16 @@ if mode_switch == 2:
 
             plt.pause(0.001)
 
-            optimizer_connector.zero_grad()
-            loss.backward()
-
-            if (epoch + 1) % 50 == 0:
-                print(f"points:{points},epoch:{epoch + 1},loss:{loss.item()}")
-
-            optimizer_connector.step()
-            optimizer_decoder.step()
-
+            # optimizer_connector.zero_grad()
+            # optimizer_decoder.zero_grad()
+            # loss.backward()
+            #
+            # if (epoch + 1) % 50 == 0:
+            #     print(f"points:{points},epoch:{epoch + 1},loss:{loss.item()}")
+            #
+            # optimizer_connector.step()
+            # optimizer_decoder.step()
+            #
             # scheduler_decoder.step()
             # scheduler_connector.step()
             # learning_rate = scheduler_connector.get_last_lr()[0]
@@ -320,22 +325,21 @@ if mode_switch == 3:
 
     check_input = training_data_input
     check_output = training_data_output
-    output = np.zeros(check_output.shape)
 
-    encoded, (h_encoded, c_encoded) = encoder(training_data_input)
-    for i in range(output.shape[1]):
-        decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
+    encoded, (h_encoded, c_encoded) = encoder(check_input)
+    decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
+    output = decoded.clone()
+
+    for i in range(check_output.shape[1]):
         connected = connector(decoded)
         encoded, h_encoded, c_encoded = connected, h_decoded, c_decoded
-        for j in range(output.shape[0]):
-            output[j, i, 0] = decoded[j, 0, 0]
-            output[j, i, 1] = decoded[j, 0, 1]
-        # print(criterion(decoded, check_output[:, i, :].unsqueeze(1)).item())
+        decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
+        output = torch.cat((output.clone(), decoded.clone()), 1)
 
-    for i in range(output.shape[0]):
+    for i in range(check_output.shape[0]):
         plt.clf()
         plt.plot(check_input.cpu().detach().numpy()[i, :, 0], check_input.cpu().detach().numpy()[i, :, 1])
         plt.plot(check_output.cpu().detach().numpy()[i, :, 0], check_output.cpu().detach().numpy()[i, :, 1])
-        for j in range(output.shape[1]):
-            plt.plot(output[i, j, 0], output[i, j, 0], "*")
-            plt.pause(0.1)
+        plt.plot(output.cpu().detach().numpy()[i, :, 0], output.cpu().detach().numpy()[i, :, 1], "*")
+        plt.pause(0.01)
+
