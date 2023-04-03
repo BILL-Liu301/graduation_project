@@ -295,19 +295,19 @@ if mode_switch == 2:
 
             plt.pause(0.001)
 
-            # optimizer_connector.zero_grad()
-            # optimizer_decoder.zero_grad()
-            # loss.backward()
-            #
-            # if (epoch + 1) % 50 == 0:
-            #     print(f"points:{points},epoch:{epoch + 1},loss:{loss.item()}")
-            #
-            # optimizer_connector.step()
-            # optimizer_decoder.step()
-            #
-            # scheduler_decoder.step()
-            # scheduler_connector.step()
-            # learning_rate = scheduler_connector.get_last_lr()[0]
+            optimizer_connector.zero_grad()
+            optimizer_decoder.zero_grad()
+            loss.backward()
+
+            if (epoch + 1) % 50 == 0:
+                print(f"points:{points},epoch:{epoch + 1},loss:{loss.item()}")
+
+            optimizer_connector.step()
+            optimizer_decoder.step()
+
+            scheduler_decoder.step()
+            scheduler_connector.step()
+            learning_rate = scheduler_connector.get_last_lr()[0]
 
             rand_para = torch.randperm(training_data_input.shape[0])
             training_data_input = training_data_input[rand_para]
@@ -323,8 +323,8 @@ if mode_switch == 3:
     decoder = torch.load("end_decoder.pth")
     connector = torch.load("end_connector.pth")
 
-    check_input = training_data_input
-    check_output = training_data_output
+    check_input = testing_data_input
+    check_output = testing_data_output
 
     encoded, (h_encoded, c_encoded) = encoder(check_input)
     decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
