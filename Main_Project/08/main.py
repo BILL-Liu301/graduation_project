@@ -158,7 +158,7 @@ optimizer_connector = optim.Adam(connector.parameters(), lr=learning_rate)
 criterion = nn.MSELoss()
 
 # 模式选取
-mode_switch = 2
+mode_switch = 3
 
 # 主要部分
 fig = plt.figure()
@@ -323,10 +323,12 @@ if mode_switch == 3:
         for j in range(output.shape[0]):
             output[j, i, 0] = decoded[j, 0, 0]
             output[j, i, 1] = decoded[j, 0, 1]
+        # print(criterion(decoded, check_output[:, i, :].unsqueeze(1)).item())
 
     for i in range(output.shape[0]):
         plt.clf()
-        plt.plot(output[i, :, 0], output[i, :, 0], "*")
         plt.plot(check_input.cpu().detach().numpy()[i, :, 0], check_input.cpu().detach().numpy()[i, :, 1])
         plt.plot(check_output.cpu().detach().numpy()[i, :, 0], check_output.cpu().detach().numpy()[i, :, 1])
-        plt.pause(0.1)
+        for j in range(output.shape[1]):
+            plt.plot(output[i, j, 0], output[i, j, 0], "*")
+            plt.pause(0.1)
