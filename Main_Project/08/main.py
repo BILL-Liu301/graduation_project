@@ -158,7 +158,7 @@ optimizer_connector = optim.Adam(connector.parameters(), lr=learning_rate)
 criterion = nn.MSELoss()
 
 # 模式选取
-mode_switch = 3
+mode_switch = 1
 
 # 主要部分
 fig = plt.figure()
@@ -223,18 +223,22 @@ if mode_switch == 0:
     fig.savefig("figs/" + "single.png")
 if mode_switch == 1:
     print("单点模型测试")
+
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")
 
-    encoded, (h_encoded, c_encoded) = encoder(testing_data_input)
+    check_input = training_data_input
+    check_output = training_data_output
+
+    encoded, (h_encoded, c_encoded) = encoder(check_input)
     decoded, _ = decoder(encoded, h_encoded, c_encoded)
-    loss = criterion(decoded, testing_data_output[:, 0, :].unsqueeze(1)) * testing_data_output.shape[0]
+    loss = criterion(decoded, check_output[:, 0, :].unsqueeze(1)) * check_output.shape[0]
     print(loss.item())
 
-    for i in range(testing_data_output.shape[0]):
-        plt.plot(np.append(testing_data_output.cpu().detach().numpy()[i, 0, 0],
+    for i in range(check_output.shape[0]):
+        plt.plot(np.append(check_output.cpu().detach().numpy()[i, 0, 0],
                            decoded.cpu().detach().numpy()[i, :, 0]),
-                 np.append(testing_data_output.cpu().detach().numpy()[i, 0, 1],
+                 np.append(check_output.cpu().detach().numpy()[i, 0, 1],
                            decoded.cpu().detach().numpy()[i, :, 1]))
     plt.show()
 if mode_switch == 2:
@@ -244,7 +248,7 @@ if mode_switch == 2:
 
     for points in range(1, training_data_output.shape[1], 1):
         learning_rate = learning_rate_init
-        optimizer_decoder = optim.Adam(decoder.parameters(), lr=learning_rate / (points * 2))
+        optimizer_decoder = optim.Adam(decoder.parameters(), lr=(learning_rate / (points * 3)))
         optimizer_connector = optim.Adam(connector.parameters(), lr=learning_rate)
         scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=100, gamma=0.7, last_epoch=-1)
         scheduler_connector = scheduler.StepLR(optimizer_connector, step_size=100, gamma=0.7, last_epoch=-1)
@@ -253,11 +257,13 @@ if mode_switch == 2:
         for epoch in range(max_epoch):
             encoded, (h_encoded, c_encoded) = encoder(training_data_input)
             decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
+            decoded_clone = decoded.clone()
             for point in range(points):
                 connected = connector(decoded)
                 encoded, h_encoded, c_encoded = connected, h_decoded, c_decoded
                 decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
-            loss = criterion(decoded, training_data_output[:, points, :].unsqueeze(1)) * training_data_output.shape[0]
+                decoded_clone = torch.cat((decoded_clone.clone(), decoded.clone()), 1)
+            loss = criterion(decoded_clone, training_data_output[:, 0:(points + 1), :]) * decoded_clone.shape[0]
 
             plt.clf()
             show = 150
@@ -275,11 +281,11 @@ if mode_switch == 2:
                      f"lr:{learning_rate:.10f}", fontsize=10)
 
             plt.subplot(1, 2, 2)
-            for i in range(training_data_output.shape[0]):
-                plt.plot(np.append(training_data_output.cpu().detach().numpy()[i, points, 0],
-                                   decoded.cpu().detach().numpy()[i, :, 0]),
-                         np.append(training_data_output.cpu().detach().numpy()[i, points, 1],
-                                   decoded.cpu().detach().numpy()[i, :, 1]))
+            for i in range(1):
+                plt.plot(training_data_output.cpu().detach().numpy()[i, 0:(points + 1), 0],
+                         training_data_output.cpu().detach().numpy()[i, 0:(points + 1), 1])
+                plt.plot(decoded_clone.cpu().detach().numpy()[i, :, 0],
+                         decoded_clone.cpu().detach().numpy()[i, :, 1], "*")
 
             all_loss = np.append(all_loss, [0.0], axis=0)
 
@@ -294,13 +300,14 @@ if mode_switch == 2:
             optimizer_connector.step()
             optimizer_decoder.step()
 
-            scheduler_decoder.step()
-            scheduler_connector.step()
-            learning_rate = scheduler_connector.get_last_lr()[0]
+            # scheduler_decoder.step()
+            # scheduler_connector.step()
+            # learning_rate = scheduler_connector.get_last_lr()[0]
 
             rand_para = torch.randperm(training_data_input.shape[0])
             training_data_input = training_data_input[rand_para]
             training_data_output = training_data_output[rand_para]
+
         fig.savefig("figs/" + str(points + 1) + ".png")
 
         torch.save(decoder, "end_decoder.pth")
