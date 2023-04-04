@@ -47,7 +47,7 @@ size_connector_fc_output = size_decoder_lstm_input
 
 learning_rate_init = 1e-4
 learning_rate = learning_rate_init
-max_epoch = 1000
+max_epoch = 5000
 
 
 # 定义编码器
@@ -245,7 +245,7 @@ if mode_switch == 1:
                  np.append(check_output.cpu().detach().numpy()[i, 0, 1],
                            decoded.cpu().detach().numpy()[i, :, 1]))
     plt.show()
-if mode_switch == 2:
+if mode_switch == 0:
     print("进行连接模型训练")
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")
