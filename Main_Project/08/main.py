@@ -323,8 +323,8 @@ if mode_switch == 3:
     decoder = torch.load("end_decoder.pth")
     connector = torch.load("end_connector.pth")
 
-    check_input = testing_data_input
-    check_output = testing_data_output
+    check_input = training_data_input
+    check_output = training_data_output
 
     encoded, (h_encoded, c_encoded) = encoder(check_input)
     decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
