@@ -47,7 +47,7 @@ size_connector_fc_output = size_decoder_lstm_input
 
 learning_rate_init = 1e-4
 learning_rate = learning_rate_init
-max_epoch = 5000
+max_epoch = 2000
 
 
 # 定义编码器
@@ -251,8 +251,8 @@ if mode_switch == 0:
     decoder = torch.load("end_decoder.pth")
 
     for points in range(1, training_data_output.shape[1], 1):
-        learning_rate = learning_rate_init
-        optimizer_decoder = optim.Adam(decoder.parameters(), lr=(learning_rate / (points * 10)))
+        learning_rate = learning_rate_init * points * 0.1
+        optimizer_decoder = optim.Adam(decoder.parameters(), lr=learning_rate)
         optimizer_connector = optim.Adam(connector.parameters(), lr=learning_rate)
         scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=100, gamma=0.7, last_epoch=-1)
         scheduler_connector = scheduler.StepLR(optimizer_connector, step_size=100, gamma=0.7, last_epoch=-1)
@@ -323,8 +323,8 @@ if mode_switch == 3:
     decoder = torch.load("end_decoder.pth")
     connector = torch.load("end_connector.pth")
 
-    check_input = training_data_input
-    check_output = training_data_output
+    check_input = testing_data_input
+    check_output = testing_data_output
 
     encoded, (h_encoded, c_encoded) = encoder(check_input)
     decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
