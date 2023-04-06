@@ -28,7 +28,7 @@ print(f'testing_data_input: {testing_data_input.shape}')
 print(f'testing_data_output: {testing_data_output.shape}')
 
 # 定义基本参数
-size_basic = 128
+size_basic = 256
 size_encoder_fc_input = data_size - 1  # 减去index
 size_encoder_fc_middle = size_basic
 size_encoder_fc_output = size_basic
@@ -42,9 +42,9 @@ size_decoder_fc_input = size_decoder_lstm_hidden
 size_decoder_fc_middle = size_basic
 size_decoder_fc_output = int(row * column)
 
-learning_rate_init = 1e-4
+learning_rate_init = 1e-3
 learning_rate = learning_rate_init
-max_epoch = 100
+max_epoch = 5000
 
 
 # 定义编码器
@@ -80,9 +80,9 @@ class Encoder(nn.Module):
         c1 = torch.ones(self.encoder_lstm_num_layers, x.size(0), self.encoder_lstm_hidden_size).to(device)
 
         out = self.encoder_fc1(x)
-        out = self.encoder_fc2(out)
-        out = self.encoder_fc3(out)
-        out = self.encoder_fc4(out)
+        out = self.encoder_fc2(self.encoder_activate1(out))
+        out = self.encoder_fc3(self.encoder_activate2(out))
+        out = self.encoder_fc4(self.encoder_activate3(out))
         out_front, (h_front, c_front) = self.encoder_lstm_front(out, (h0, c0))
         out_back, (h_back, c_back) = self.encoder_lstm_back(out.flip(dims=[1]), (h1, c1))
         h = torch.add(h_front, h_back)
@@ -115,13 +115,15 @@ class Decoder(nn.Module):
                                           init=self.decoder_activate_init)
         self.decoder_activate3 = nn.PReLU(num_parameters=1,
                                           init=self.decoder_activate_init)
+        self.decoder_activate4 = nn.PReLU(num_parameters=1,
+                                          init=self.decoder_activate_init)
 
     def forward(self, x, h1, c1):
         out, (h2, c2) = self.decoder_lstm(x, (h1, c1))
-        out = self.decoder_fc1(out)
-        out = self.decoder_fc2(out)
-        out = self.decoder_fc3(out)
-        out = self.decoder_fc4(out)
+        out = self.decoder_fc1(self.decoder_activate1(out))
+        out = self.decoder_fc2(self.decoder_activate2(out))
+        out = self.decoder_fc3(self.decoder_activate3(out))
+        out = self.decoder_fc4(self.decoder_activate4(out))
         out = self.decoder_softmax(out)
         return out, (h2, c2)
 
@@ -133,8 +135,8 @@ decoder = Decoder(size_decoder_lstm_input, size_decoder_lstm_hidden,
                   size_decoder_fc_input, size_decoder_fc_middle, size_decoder_fc_output).to(device)
 
 # 优化器和损失函数
-optimizer_encoder = optim.Adam(encoder.parameters(), lr=learning_rate)
-optimizer_decoder = optim.Adam(decoder.parameters(), lr=learning_rate)
+optimizer_encoder = optim.SGD(encoder.parameters(), lr=learning_rate, weight_decay=0.5)
+optimizer_decoder = optim.SGD(decoder.parameters(), lr=learning_rate, weight_decay=0.5)
 criterion = nn.CrossEntropyLoss()
 
 # 模式选取
@@ -145,14 +147,14 @@ fig = plt.figure()
 if mode_switch == 0:
     print("进行模型训练")
 
-    scheduler_encoder = scheduler.StepLR(optimizer_encoder, step_size=100, gamma=0.85, last_epoch=-1)
-    scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=100, gamma=0.85, last_epoch=-1)
+    scheduler_encoder = scheduler.StepLR(optimizer_encoder, step_size=200, gamma=0.9, last_epoch=-1)
+    scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=200, gamma=0.9, last_epoch=-1)
 
     all_loss = np.zeros([1])
     for epoch in range(max_epoch):
         encoded, (h_encoded, c_encoded) = encoder(training_data_input)
         decoded, _ = decoder(encoded, h_encoded, c_encoded)
-        loss = criterion(decoded[:, 0, :].clone(), training_data_output[:, 0, :])
+        loss = criterion(decoded[:, 0, :].clone(), training_data_output[:, 0, :]) * testing_data_output.shape[0]
 
         plt.clf()
         show = 150
