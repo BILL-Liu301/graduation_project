@@ -22,7 +22,7 @@ for each_line in data_source:
 
 data = np.delete(data, data.shape[0] - 1, 0)
 
-k_lat = m.pi * 6371393 * m.cos(data[0, 1] * m.pi / 360) / 180
+k_lat = m.pi * 6371393 * m.cos(data[0, 1] * m.pi / 180) / 180
 k_lon = m.pi * 6371393 / 180
 data[:, 1] = data[:, 1] * k_lon
 data[:, 2] = data[:, 2] * k_lat
