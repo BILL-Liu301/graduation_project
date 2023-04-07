@@ -31,17 +31,17 @@ for car_id in range(1, car_ids):
     data_temp[:, 2] = (data_temp[:, 2] - init_y) * k_y
     np.save("Ubiquitous_Traffic_Eyes/datas/" + str(car_id) + ".npy", data_temp)
 
-# plt.figure()
-# for car_id in range(1, car_ids):
-#     data_temp = np.load("Ubiquitous_Traffic_Eyes/datas/" + str(car_id) + ".npy")
-#     plt.xlim(-800, 150)
-#     plt.ylim(-300, 300)
-#     for i in range(data_temp.shape[0]):
-#         plt.plot(data_temp[i, 1], data_temp[i, 2], "*")
-#         if i == int(data_temp.shape[0] - 1):
-#             print("--------------")
-#             plt.pause(data_temp[i, 0] - data_temp[i - 1, 0])
-#             break
-#         plt.pause(data_temp[i + 1, 0] - data_temp[i, 0])
-#     # plt.clf()
+plt.figure()
+for car_id in range(1, car_ids):
+    data_temp = np.load("Ubiquitous_Traffic_Eyes/datas/" + str(car_id) + ".npy")
+    plt.xlim(-800, 150)
+    plt.ylim(-300, 300)
+    for i in range(data_temp.shape[0]):
+        plt.plot(data_temp[i, 1], data_temp[i, 2], "*")
+        if i == int(data_temp.shape[0] - 1):
+            print("--------------")
+            plt.pause(data_temp[i, 0] - data_temp[i - 1, 0])
+            break
+        plt.pause(data_temp[i + 1, 0] - data_temp[i, 0])
+    plt.clf()
 
