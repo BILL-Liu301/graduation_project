@@ -7,6 +7,18 @@ from utils import data_size, input_size
 import matplotlib.pyplot as plt
 import torch.optim.lr_scheduler as scheduler
 
+# 启动前检查
+print('CUDA版本:', torch.version.cuda)
+print('Pytorch版本:', torch.__version__)
+print('显卡是否可用:', '可用' if (torch.cuda.is_available()) else '不可用')
+print('显卡数量:', torch.cuda.device_count())
+print('是否支持BF16数字格式:', '支持' if (torch.cuda.is_bf16_supported()) else '不支持')
+print('当前显卡型号:', torch.cuda.get_device_name())
+print('当前显卡的CUDA算力:', torch.cuda.get_device_capability())
+print('当前显卡的总显存:', torch.cuda.get_device_properties(0).total_memory / 1024 / 1024 / 1024, 'GB')
+print('是否支持TensorCore:', '支持' if (torch.cuda.get_device_properties(0).major >= 7) else '不支持')
+print('当前显卡的显存使用率:', torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory*100, '%')
+
 # 清空缓存，固定随即种子
 torch.manual_seed(1)
 torch.cuda.empty_cache()
@@ -214,9 +226,9 @@ if mode_switch == 0:
         optimizer_encoder.step()
         optimizer_decoder.step()
 
-        scheduler_encoder.step()
-        scheduler_decoder.step()
-        learning_rate = scheduler_encoder.get_last_lr()[0]
+        # scheduler_encoder.step()
+        # scheduler_decoder.step()
+        # learning_rate = scheduler_encoder.get_last_lr()[0]
 
         rand_para = torch.randperm(training_data_input.shape[0])
         training_data_input = training_data_input[rand_para]
@@ -245,7 +257,7 @@ if mode_switch == 1:
                  np.append(check_output.cpu().detach().numpy()[i, 0, 1],
                            decoded.cpu().detach().numpy()[i, :, 1]))
     plt.show()
-if mode_switch == 0:
+if mode_switch == 2:
     print("进行连接模型训练")
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")
@@ -285,7 +297,7 @@ if mode_switch == 0:
                      f"lr:{learning_rate:.10f}", fontsize=10)
 
             plt.subplot(1, 2, 2)
-            for i in range(20):
+            for i in range(10):
                 plt.plot(training_data_output.cpu().detach().numpy()[i, 0:(points + 1), 0],
                          training_data_output.cpu().detach().numpy()[i, 0:(points + 1), 1])
                 plt.plot(decoded_clone.cpu().detach().numpy()[i, :, 0],
@@ -305,9 +317,9 @@ if mode_switch == 0:
             optimizer_connector.step()
             optimizer_decoder.step()
 
-            scheduler_decoder.step()
-            scheduler_connector.step()
-            learning_rate = scheduler_connector.get_last_lr()[0]
+            # scheduler_decoder.step()
+            # scheduler_connector.step()
+            # learning_rate = scheduler_connector.get_last_lr()[0]
 
             rand_para = torch.randperm(training_data_input.shape[0])
             training_data_input = training_data_input[rand_para]
@@ -342,4 +354,3 @@ if mode_switch == 3:
         plt.plot(check_output.cpu().detach().numpy()[i, :, 0], check_output.cpu().detach().numpy()[i, :, 1])
         plt.plot(output.cpu().detach().numpy()[i, :, 0], output.cpu().detach().numpy()[i, :, 1], "*")
         plt.pause(0.01)
-
