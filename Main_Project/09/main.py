@@ -201,8 +201,8 @@ if mode_switch == 1:
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")
 
-    check_input = training_data_input
-    check_output = training_data_output
+    check_input = testing_data_input
+    check_output = testing_data_output
     check_output_origin = training_data_output_origin
 
     encoded, (h_encoded, c_encoded) = encoder(check_input)
@@ -250,6 +250,7 @@ if mode_switch == 1:
                  decoded[i, 0, 7], fontsize=10)
         plt.text((side_length_x + side_length_x_center) / 2, 2 * side_length_y + side_length_y / 2,
                  decoded[i, 0, 8], fontsize=10)
+        fig.savefig("../result/09/" + str(i) + ".png")
         plt.pause(0.01)
 
 

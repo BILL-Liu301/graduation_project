@@ -113,7 +113,9 @@ for i in range(testing_data_input.shape[0]):
 #     plt.clf()
 
 # # 移除index参数
-training_data_input = np.array(training_data_input[:, :, 1:data_size])
-training_data_output = np.array(training_data_output[:, :, 1:data_size])
-testing_data_input = np.array(testing_data_input[:, :, 1:data_size])
-testing_data_output = np.array(testing_data_output[:, :, 1:data_size])
+start = 300
+batch_size = 1000
+training_data_input = np.array(training_data_input[start:(start + batch_size), :, 1:data_size])
+training_data_output = np.array(training_data_output[start:(start + batch_size), :, 1:data_size])
+testing_data_input = np.array(testing_data_input[start:(start + batch_size), :, 1:data_size])
+testing_data_output = np.array(testing_data_output[start:(start + batch_size), :, 1:data_size])

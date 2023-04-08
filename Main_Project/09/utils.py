@@ -174,6 +174,7 @@ for i in range(training_data_output.shape[0]):
             print(f"超出范围，请增大范围，当前i={i}，x = {training_data_output_origin[i, j, 1]}")
             raise IndexError
     training_data_output[i, 0, :] = training_data_output[i, 0, :] / training_data_output[i, 0, :].sum()
+    training_data_output[i, 0, :] = np.exp(training_data_output[i, 0, :]) / np.exp(training_data_output[i, 0, :]).sum()
 
 for i in range(testing_data_output.shape[0]):
     for j in range(testing_data_output_origin.shape[1]):
@@ -231,7 +232,7 @@ for i in range(testing_data_output.shape[0]):
             print(f"超出范围，请增大范围，当前i={i}，x = {testing_data_output_origin[i, j, 1]}")
             raise IndexError
     testing_data_output[i, 0, :] = testing_data_output[i, 0, :] / testing_data_output[i, 0, :].sum()
-
+    testing_data_output[i, 0, :] = np.exp(testing_data_output[i, 0, :]) / np.exp(testing_data_output[i, 0, :]).sum()
 
 # plt.figure()
 # for i in range(training_data_input.shape[0]):
@@ -284,7 +285,7 @@ for i in range(testing_data_output.shape[0]):
 #     plt.pause(0.001)
 
 
-# # 移除index参数
+# 移除index参数
 training_data_input = np.array(training_data_input[:, :, 1:data_size])
 # training_data_output = np.array(training_data_output_origin[:, :, 1:3])
 testing_data_input = np.array(testing_data_input[:, :, 1:data_size])

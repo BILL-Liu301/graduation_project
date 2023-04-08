@@ -1,3 +1,4 @@
+import time
 import numpy as np
 import torch
 import torch.nn as nn
@@ -17,7 +18,8 @@ print('当前显卡型号:', torch.cuda.get_device_name())
 print('当前显卡的CUDA算力:', torch.cuda.get_device_capability())
 print('当前显卡的总显存:', torch.cuda.get_device_properties(0).total_memory / 1024 / 1024 / 1024, 'GB')
 print('是否支持TensorCore:', '支持' if (torch.cuda.get_device_properties(0).major >= 7) else '不支持')
-print('当前显卡的显存使用率:', torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory*100, '%')
+print('当前显卡的显存使用率:', torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory * 100,
+      '%')
 
 # 清空缓存，固定随即种子
 torch.manual_seed(1)
@@ -177,6 +179,7 @@ criterion = nn.MSELoss()
 mode_switch = int(input("请进行模式选择："))
 
 # 主要部分
+t_start = time.time()
 fig = plt.figure()
 if mode_switch == 0:
     print("进行单点模型训练")
@@ -186,9 +189,12 @@ if mode_switch == 0:
 
     all_loss = np.zeros([1])
     for epoch in range(max_epoch):
+        torch.cuda.empty_cache()
         encoded, (h_encoded, c_encoded) = encoder(training_data_input)
         decoded, _ = decoder(encoded, h_encoded, c_encoded)
         loss = criterion(decoded, training_data_output[:, 0, :].unsqueeze(1)) * training_data_output.shape[0]
+        print('当前显卡的显存使用率:',
+              torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory * 100, '%')
 
         plt.clf()
         show = 150
@@ -257,7 +263,7 @@ if mode_switch == 1:
                  np.append(check_output.cpu().detach().numpy()[i, 0, 1],
                            decoded.cpu().detach().numpy()[i, :, 1]))
     plt.show()
-if mode_switch == 2:
+if mode_switch == 0:
     print("进行连接模型训练")
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")
@@ -271,6 +277,7 @@ if mode_switch == 2:
 
         all_loss = np.zeros([1])
         for epoch in range(max_epoch):
+            torch.cuda.empty_cache()
             encoded, (h_encoded, c_encoded) = encoder(training_data_input)
             decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
             decoded_clone = decoded.clone()
@@ -280,6 +287,8 @@ if mode_switch == 2:
                 decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
                 decoded_clone = torch.cat((decoded_clone.clone(), decoded.clone()), 1)
             loss = criterion(decoded_clone, training_data_output[:, 0:(points + 1), :]) * decoded_clone.shape[0]
+            print('当前显卡的显存使用率:',
+                  torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory * 100, '%')
 
             plt.clf()
             show = 150
@@ -349,8 +358,14 @@ if mode_switch == 3:
         output = torch.cat((output.clone(), decoded.clone()), 1)
 
     for i in range(check_output.shape[0]):
-        plt.clf()
+        lim = 50
+        plt.xlim(-lim, lim)
+        plt.ylim(-lim, lim)
         plt.plot(check_input.cpu().detach().numpy()[i, :, 0], check_input.cpu().detach().numpy()[i, :, 1])
         plt.plot(check_output.cpu().detach().numpy()[i, :, 0], check_output.cpu().detach().numpy()[i, :, 1])
         plt.plot(output.cpu().detach().numpy()[i, :, 0], output.cpu().detach().numpy()[i, :, 1], "*")
+        fig.savefig("../result/08/" + str(i) + ".png")
         plt.pause(0.01)
+        plt.clf()
+print(f"本次程序运行时间为：{int((time.time() - t_start) / 60)} min, {(time.time() - t_start) % 60}s")
+
