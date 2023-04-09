@@ -119,7 +119,7 @@ testing_data_output = np.zeros([testing_data_output_origin.shape[0],
                                 1,
                                 row * column])
 for i in range(training_data_output.shape[0]):
-    for j in range(training_data_output_origin.shape[1]):
+    for j in range(int(training_data_output_origin.shape[1] - 1), training_data_output_origin.shape[1]):
         if abs(training_data_output_origin[i, j, 1]) <= (side_length_x_center / 2):
             # 在1，4，7内
             if training_data_output_origin[i, j, 2] <= side_length_y:
@@ -174,10 +174,10 @@ for i in range(training_data_output.shape[0]):
             print(f"超出范围，请增大范围，当前i={i}，x = {training_data_output_origin[i, j, 1]}")
             raise IndexError
     training_data_output[i, 0, :] = training_data_output[i, 0, :] / training_data_output[i, 0, :].sum()
-    training_data_output[i, 0, :] = np.exp(training_data_output[i, 0, :]) / np.exp(training_data_output[i, 0, :]).sum()
+    # training_data_output[i, 0, :] = np.exp(training_data_output[i, 0, :]) / np.exp(training_data_output[i, 0, :]).sum()
 
 for i in range(testing_data_output.shape[0]):
-    for j in range(testing_data_output_origin.shape[1]):
+    for j in range(int(testing_data_output_origin.shape[1] - 1), testing_data_output_origin.shape[1]):
         if abs(testing_data_output_origin[i, j, 1]) <= (side_length_x_center / 2):
             # 在1，4，7内
             if testing_data_output_origin[i, j, 2] <= side_length_y:
@@ -232,7 +232,7 @@ for i in range(testing_data_output.shape[0]):
             print(f"超出范围，请增大范围，当前i={i}，x = {testing_data_output_origin[i, j, 1]}")
             raise IndexError
     testing_data_output[i, 0, :] = testing_data_output[i, 0, :] / testing_data_output[i, 0, :].sum()
-    testing_data_output[i, 0, :] = np.exp(testing_data_output[i, 0, :]) / np.exp(testing_data_output[i, 0, :]).sum()
+    # testing_data_output[i, 0, :] = np.exp(testing_data_output[i, 0, :]) / np.exp(testing_data_output[i, 0, :]).sum()
 
 # plt.figure()
 # for i in range(training_data_input.shape[0]):

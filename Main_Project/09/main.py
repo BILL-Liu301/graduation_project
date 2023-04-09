@@ -91,6 +91,7 @@ class Encoder(nn.Module):
                                           init=self.encoder_activate_init)
         self.encoder_activate3 = nn.PReLU(num_parameters=encoder_activate_num_parameters_size,
                                           init=self.encoder_activate_init)
+        self.encoder_batch_normalization = nn.BatchNorm1d(encoder_activate_num_parameters_size, affine=False)
 
     def forward(self, x):
         h0 = torch.ones(self.encoder_lstm_num_layers, x.size(0), self.encoder_lstm_hidden_size).to(device)
@@ -99,15 +100,19 @@ class Encoder(nn.Module):
         c1 = torch.ones(self.encoder_lstm_num_layers, x.size(0), self.encoder_lstm_hidden_size).to(device)
 
         out = self.encoder_fc1(x)
-        out_res = out.clone()
+        out = self.encoder_batch_normalization(out)
         out = self.encoder_fc2(self.encoder_activate(out))
+        out = self.encoder_batch_normalization(out)
         out = self.encoder_fc3(self.encoder_activate(out))
-        out = self.encoder_fc4(self.encoder_activate(torch.add(out_res, out)))
-        out_res = out.clone()
+        out = self.encoder_batch_normalization(out)
+        out = self.encoder_fc4(self.encoder_activate(out))
+        out = self.encoder_batch_normalization(out)
         out = self.encoder_fc5(self.encoder_activate(out))
-        out = self.encoder_fc6(self.encoder_activate(out))
-        out = self.encoder_fc7(self.encoder_activate(torch.add(out_res, out)))
+        out = self.encoder_batch_normalization(out)
+        # out = self.encoder_fc6(self.encoder_activate(out))
+        # out = self.encoder_fc7(self.encoder_activate(out))
         out = self.encoder_fc8(self.encoder_activate(out))
+        out = self.encoder_batch_normalization(out)
         out_front, _ = self.encoder_lstm_front(out, (h0, c0))
         out_back, _ = self.encoder_lstm_back(out.flip(dims=[1]), (h1, c1))
         out = torch.add(out_front, out_back)
@@ -145,17 +150,21 @@ class Decoder(nn.Module):
                                           init=self.decoder_activate_init)
         self.decoder_activate4 = nn.PReLU(num_parameters=1,
                                           init=self.decoder_activate_init)
+        self.decoder_batch_normalization = nn.BatchNorm1d(1, affine=False)
 
     def forward(self, x):
         out = self.decoder_fc1(self.decoder_activate(x))
-        out_res = out.clone()
+        out = self.decoder_batch_normalization(out)
         out = self.decoder_fc2(self.decoder_activate(out))
+        out = self.decoder_batch_normalization(out)
         out = self.decoder_fc3(self.decoder_activate(out))
-        out = self.decoder_fc4(self.decoder_activate(torch.add(out_res, out)))
-        out_res = out.clone()
+        out = self.decoder_batch_normalization(out)
+        out = self.decoder_fc4(self.decoder_activate(out))
+        out = self.decoder_batch_normalization(out)
         out = self.decoder_fc5(self.decoder_activate(out))
-        out = self.decoder_fc6(self.decoder_activate(out))
-        out = self.decoder_fc7(self.decoder_activate(torch.add(out_res, out)))
+        out = self.decoder_batch_normalization(out)
+        # out = self.decoder_fc6(self.decoder_activate(out))
+        # out = self.decoder_fc7(self.decoder_activate(out))
         out = self.decoder_fc8(self.decoder_activate(out))
         return out
 
@@ -194,7 +203,6 @@ if mode_switch == 0:
             train_output = training_data_output[int(each_batch * batch_size):int((each_batch + 1) * batch_size), :, :]
             encoded = encoder(train_input)
             decoded = decoder(encoded)
-            decoded = softmax(decoded)
             loss = criterion(decoded[:, 0, :], train_output[:, 0, :])
             # print('当前显卡的显存使用率:',
             #       torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory * 100, '%')
@@ -214,11 +222,16 @@ if mode_switch == 0:
         for name, param in encoder.named_parameters():
             if param.grad is None:
                 continue
-            if param.grad.abs().max() >= all_grad_abs[-1, 0]:
-                all_grad_abs[-1, 0] = param.grad.abs().max()
+            if abs(param.grad.cpu().numpy().max()) >= all_grad_abs[-1, 0]:
+                all_grad_abs[-1, 0] = param.grad.cpu().numpy().max()
 
-            if param.grad.abs().min() <= all_grad_abs[-1, 1]:
-                all_grad_abs[-1, 1] = param.grad.abs().min()
+            if abs(param.grad.cpu().numpy().min()) >= all_grad_abs[-1, 0]:
+                all_grad_abs[-1, 0] = param.grad.cpu().numpy().min()
+
+            if True:
+                temp = param.grad.cpu().numpy()
+                temp = temp[np.nonzero(temp)]
+                all_grad_abs[-1, 1] = temp[np.abs(temp).argmin()]
 
         plt.clf()
 
@@ -229,9 +242,11 @@ if mode_switch == 0:
 
         plt.subplot(3, 1, 2)
         plt.plot(all_grad_abs[:, 0])
+        plt.plot([0.0, epoch], [0.0, 0.0], "r--")
 
         plt.subplot(3, 1, 3)
         plt.plot(all_grad_abs[:, 1])
+        plt.plot([0.0, epoch], [0.0, 0.0], "r--")
 
         plt.pause(0.01)
 
@@ -248,7 +263,7 @@ if mode_switch == 0:
 
     torch.save(encoder, "end_encoder.pth")
     torch.save(decoder, "end_decoder.pth")
-    fig.savefig("finish.png")
+    fig.savefig("figs/finish.png")
 if mode_switch == 1:
     print("模型测试")
 
@@ -262,6 +277,7 @@ if mode_switch == 1:
     encoded = encoder(check_input)
     decoded = decoder(encoded)
     loss = criterion(decoded[:, 0, :], check_output[:, 0, :]) * check_output.shape[0]
+    decoded = softmax(decoded)
     print(loss.item())
 
     check_input = check_input.cpu().detach().numpy()
@@ -304,5 +320,6 @@ if mode_switch == 1:
                  decoded[i, 0, 7], fontsize=10)
         plt.text((side_length_x + side_length_x_center) / 2, 2 * side_length_y + side_length_y / 2,
                  decoded[i, 0, 8], fontsize=10)
-        fig.savefig("../result/09/" + str(i) + ".png")
+        if (i + 1) % 20 == 0:
+            fig.savefig("../result/09/" + str(i+1) + ".png")
         plt.pause(0.01)
