@@ -57,7 +57,8 @@ size_decoder_fc_output = int(row * column)
 
 learning_rate_init = 1e-3
 learning_rate = learning_rate_init
-max_epoch = 5000
+max_epoch = 1000
+batch_ratio = 0.2
 
 
 # 定义编码器
@@ -184,42 +185,58 @@ if mode_switch == 0:
     scheduler_encoder = scheduler.StepLR(optimizer_encoder, step_size=100, gamma=0.9, last_epoch=-1)
     scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=100, gamma=0.9, last_epoch=-1)
 
-    all_loss = np.zeros([1])
+    all_loss = np.zeros([1, int(1 / batch_ratio)])
+    all_grad_abs = np.zeros([1, 2])
     for epoch in range(max_epoch):
-        encoded = encoder(training_data_input)
-        decoded = decoder(encoded)
-        decoded = softmax(decoded)
-        loss = criterion(decoded[:, 0, :], training_data_output[:, 0, :])
-        # print('当前显卡的显存使用率:',
-        #       torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory * 100, '%')
+        batch_size = training_data_input.shape[0] * batch_ratio
+        for each_batch in range(int(1 / batch_ratio)):
+            train_input = training_data_input[int(each_batch * batch_size):int((each_batch + 1) * batch_size), :, :]
+            train_output = training_data_output[int(each_batch * batch_size):int((each_batch + 1) * batch_size), :, :]
+            encoded = encoder(train_input)
+            decoded = decoder(encoded)
+            decoded = softmax(decoded)
+            loss = criterion(decoded[:, 0, :], train_output[:, 0, :])
+            # print('当前显卡的显存使用率:',
+            #       torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory * 100, '%')
+
+            all_loss[epoch, each_batch] = loss.item()
+
+            optimizer_encoder.zero_grad()
+            optimizer_decoder.zero_grad()
+            loss.backward()
+
+            if (epoch + 1) % 50 == 0:
+                print(f"epoch:{epoch + 1},loss:{loss.item()}")
+
+            optimizer_encoder.step()
+            optimizer_decoder.step()
+
+        for name, param in encoder.named_parameters():
+            if param.grad is None:
+                continue
+            if param.grad.abs().max() >= all_grad_abs[-1, 0]:
+                all_grad_abs[-1, 0] = param.grad.abs().max()
+
+            if param.grad.abs().min() <= all_grad_abs[-1, 1]:
+                all_grad_abs[-1, 1] = param.grad.abs().min()
 
         plt.clf()
-        show = 200
-        cal = 100
 
-        all_loss[epoch] = loss.item()
-        plt.plot(all_loss[max([epoch - show, 0]):(epoch + 1)])
-        plt.plot([show, show], [all_loss[max([epoch - show, 0]):(epoch + 1)].min(),
-                                all_loss[max([epoch - show, 0]):(epoch + 1)].max()], "r--")
-        plt.plot([show - cal, show - cal], [all_loss[max([epoch - show, 0]):(epoch + 1)].min(),
-                                            all_loss[max([epoch - show, 0]):(epoch + 1)].max()], "r--")
-        plt.text(show / 2, (all_loss[max([epoch - show, 0]):(epoch + 1)].max() +
-                            all_loss[max([epoch - show, 0]):(epoch + 1)].min()) / 2,
+        plt.subplot(3, 1, 1)
+        plt.plot(all_loss[:, -1])
+        plt.text(epoch / 2, (all_loss[:, -1].max() + all_loss[:, -1].min()) / 2,
                  f"lr:{learning_rate:.10f}", fontsize=10)
 
-        all_loss = np.append(all_loss, [0.0], axis=0)
+        plt.subplot(3, 1, 2)
+        plt.plot(all_grad_abs[:, 0])
 
-        plt.pause(0.001)
+        plt.subplot(3, 1, 3)
+        plt.plot(all_grad_abs[:, 1])
 
-        optimizer_encoder.zero_grad()
-        optimizer_decoder.zero_grad()
-        loss.backward()
+        plt.pause(0.01)
 
-        if (epoch + 1) % 50 == 0:
-            print(f"epoch:{epoch + 1},loss:{loss.item()}")
-
-        optimizer_encoder.step()
-        optimizer_decoder.step()
+        all_loss = np.append(all_loss, np.zeros([1, int(1 / batch_ratio)]), axis=0)
+        all_grad_abs = np.append(all_grad_abs, np.zeros([1, 2]), axis=0)
 
         scheduler_encoder.step()
         scheduler_decoder.step()
@@ -231,7 +248,7 @@ if mode_switch == 0:
 
     torch.save(encoder, "end_encoder.pth")
     torch.save(decoder, "end_decoder.pth")
-    fig.savefig("single.png")
+    fig.savefig("finish.png")
 if mode_switch == 1:
     print("模型测试")
 
@@ -289,5 +306,3 @@ if mode_switch == 1:
                  decoded[i, 0, 8], fontsize=10)
         fig.savefig("../result/09/" + str(i) + ".png")
         plt.pause(0.01)
-
-
