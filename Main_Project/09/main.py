@@ -41,7 +41,7 @@ print(f'testing_data_input: {testing_data_input.shape}')
 print(f'testing_data_output: {testing_data_output.shape}')
 
 # 定义基本参数
-size_basic = 128
+size_basic = 64
 size_encoder_fc_input = data_size - 1  # 减去index
 size_encoder_fc_middle = size_basic
 size_encoder_fc_output = size_basic
@@ -57,8 +57,8 @@ size_decoder_fc_output = int(row * column)
 
 learning_rate_init = 1e-3
 learning_rate = learning_rate_init
-max_epoch = 1500
-batch_ratio = 0.1
+max_epoch = 1000
+batch_ratio = 0.5
 
 
 # 定义编码器
@@ -196,77 +196,75 @@ if mode_switch == 0:
 
     all_loss = np.zeros([1, int(1 / batch_ratio)])
     all_grad_abs = np.zeros([1, 2])
-    for make_data in range(-1, 2, 2):
-        for epoch in range(max_epoch):
-            batch_size = training_data_input.shape[0] * batch_ratio
-            for each_batch in range(int(1 / batch_ratio)):
-                train_input = training_data_input[int(each_batch * batch_size):int((each_batch + 1) * batch_size), :, :]
-                train_input[:, :, 0] = train_input[:, :, 0] * make_data
-                train_output = training_data_output[int(each_batch * batch_size):int((each_batch + 1) * batch_size), :, :]
-                encoded = encoder(train_input)
-                decoded = decoder(encoded)
-                loss = criterion(decoded[:, 0, :], train_output[:, 0, :])
-                # print('当前显卡的显存使用率:',
-                #       torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory * 100, '%')
+    for epoch in range(max_epoch):
+        batch_size = training_data_input.shape[0] * batch_ratio
+        for each_batch in range(int(1 / batch_ratio)):
+            train_input = training_data_input[int(each_batch * batch_size):int((each_batch + 1) * batch_size), :, :]
+            train_output = training_data_output[int(each_batch * batch_size):int((each_batch + 1) * batch_size), :, :]
+            encoded = encoder(train_input)
+            decoded = decoder(encoded)
+            loss = criterion(decoded[:, 0, :], train_output[:, 0, :])
+            # print('当前显卡的显存使用率:',
+            #       torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory * 100, '%')
 
-                all_loss[epoch, each_batch] = loss.item()
+            all_loss[epoch, each_batch] = loss.item()
 
-                optimizer_encoder.zero_grad()
-                optimizer_decoder.zero_grad()
-                loss.backward()
+            optimizer_encoder.zero_grad()
+            optimizer_decoder.zero_grad()
+            loss.backward()
 
-                if (epoch + 1) % 50 == 0:
-                    print(f"make_data:{make_data},epoch:{epoch + 1},loss:{loss.item()}")
+            if (epoch + 1) % 50 == 0:
+                print(f"epoch:{epoch + 1},loss:{loss.item()}")
 
-                optimizer_encoder.step()
-                optimizer_decoder.step()
+            optimizer_encoder.step()
+            optimizer_decoder.step()
 
-            for name, param in encoder.named_parameters():
-                if param.grad is None:
-                    continue
-                if abs(param.grad.cpu().numpy().max()) >= all_grad_abs[-1, 0]:
-                    all_grad_abs[-1, 0] = param.grad.cpu().numpy().max()
+        for name, param in encoder.named_parameters():
+            if param.grad is None:
+                continue
+            if abs(param.grad.cpu().numpy().max()) >= all_grad_abs[-1, 0]:
+                all_grad_abs[-1, 0] = param.grad.cpu().numpy().max()
 
-                if abs(param.grad.cpu().numpy().min()) >= all_grad_abs[-1, 0]:
-                    all_grad_abs[-1, 0] = param.grad.cpu().numpy().min()
+            if abs(param.grad.cpu().numpy().min()) >= all_grad_abs[-1, 0]:
+                all_grad_abs[-1, 0] = param.grad.cpu().numpy().min()
 
-                if True:
-                    temp = param.grad.cpu().numpy()
-                    temp = temp[np.nonzero(temp)]
-                    all_grad_abs[-1, 1] = temp[np.abs(temp).argmin()]
+            if True:
+                temp = param.grad.cpu().numpy()
+                temp = temp[np.nonzero(temp)]
+                all_grad_abs[-1, 1] = temp[np.abs(temp).argmin()]
 
-            plt.clf()
+        plt.clf()
 
-            plt.subplot(3, 1, 1)
-            plt.plot(all_loss[:, -1])
-            plt.text(epoch / 2, (all_loss[:, -1].max() + all_loss[:, -1].min()) / 2,
-                     f"lr:{learning_rate:.10f}", fontsize=10)
+        plt.subplot(3, 1, 1)
+        plt.plot(all_loss[:, -1])
+        plt.text(epoch / 2, (all_loss[:, -1].max() + all_loss[:, -1].min()) / 2,
+                 f"lr:{learning_rate:.10f}", fontsize=10)
 
-            plt.subplot(3, 1, 2)
-            plt.plot(all_grad_abs[:, 0])
-            plt.plot([0.0, epoch], [0.0, 0.0], "r--")
+        plt.subplot(3, 1, 2)
+        plt.plot(all_grad_abs[:, 0])
+        plt.plot([0.0, epoch], [0.0, 0.0], "r--")
 
-            plt.subplot(3, 1, 3)
-            plt.plot(all_grad_abs[:, 1])
-            plt.plot([0.0, epoch], [0.0, 0.0], "r--")
+        plt.subplot(3, 1, 3)
+        plt.plot(all_grad_abs[:, 1])
+        plt.plot([0.0, epoch], [0.0, 0.0], "r--")
 
-            plt.pause(0.01)
+        plt.pause(0.01)
 
-            all_loss = np.append(all_loss, np.zeros([1, int(1 / batch_ratio)]), axis=0)
-            all_grad_abs = np.append(all_grad_abs, np.zeros([1, 2]), axis=0)
+        all_loss = np.append(all_loss, np.zeros([1, int(1 / batch_ratio)]), axis=0)
+        all_grad_abs = np.append(all_grad_abs, np.zeros([1, 2]), axis=0)
 
-            scheduler_encoder.step()
-            scheduler_decoder.step()
-            learning_rate = scheduler_encoder.get_last_lr()[0]
+        scheduler_encoder.step()
+        scheduler_decoder.step()
+        learning_rate = scheduler_encoder.get_last_lr()[0]
 
-            rand_para = torch.randperm(training_data_input.shape[0])
-            training_data_input = training_data_input[rand_para]
-            training_data_output = training_data_output[rand_para]
+        rand_para = torch.randperm(training_data_input.shape[0])
+        training_data_input = training_data_input[rand_para]
+        training_data_output = training_data_output[rand_para]
 
     torch.save(encoder, "end_encoder.pth")
     torch.save(decoder, "end_decoder.pth")
     fig.savefig("figs/finish.png")
-if mode_switch == 1:
+if mode_switch == 0:
     print("模型测试")
 
     encoder = torch.load("end_encoder.pth")
@@ -305,32 +303,80 @@ if mode_switch == 1:
         plt.plot(check_output_origin[i, :, 1], check_output_origin[i, :, 2], ".")
 
         lim = 8
-        plt.xlim(-lim, lim)
+        plt.xlim(-(int(column / 2) * side_length_x + side_length_x_center / 2),
+                 (int(column / 2) * side_length_x + side_length_x_center / 2))
         plt.ylim(0.0, row * side_length_y)
-        plt.plot([side_length_x_center / 2, side_length_x_center / 2], [0.0, side_length_y * 3], "r--")
-        plt.plot([-side_length_x_center / 2, -side_length_x_center / 2], [0.0, side_length_y * 3], "r--")
-        plt.plot([(side_length_x_center + side_length_x / 2), -(side_length_x_center + side_length_x / 2)],
+
+        plt.plot([side_length_x_center / 2, side_length_x_center / 2], [0.0, side_length_y * row], "r--")
+        plt.plot([-side_length_x_center / 2, -side_length_x_center / 2], [0.0, side_length_y * row], "r--")
+        plt.plot([-(side_length_x_center / 2 + side_length_x), -(side_length_x_center / 2 + side_length_x)],
+                 [0.0, side_length_y * row], "r--")
+        plt.plot([(side_length_x_center / 2 + side_length_x), (side_length_x_center / 2 + side_length_x)],
+                 [0.0, side_length_y * row], "r--")
+
+        plt.plot([(side_length_x_center / 2 + side_length_x * 2), -(side_length_x_center / 2 + side_length_x * 2)],
                  [side_length_y, side_length_y], "r--")
-        plt.plot([(side_length_x_center + side_length_x / 2), -(side_length_x_center + side_length_x / 2)],
+        plt.plot([(side_length_x_center / 2 + side_length_x * 2), -(side_length_x_center / 2 + side_length_x * 2)],
                  [side_length_y * 2, side_length_y * 2], "r--")
-        plt.text(-(side_length_x + side_length_x_center) / 2, side_length_y / 2,
-                 f"{decoded[i, 0, 0]:.1f}", fontsize=10)
+        plt.plot([(side_length_x_center / 2 + side_length_x * 2), -(side_length_x_center / 2 + side_length_x * 2)],
+                 [side_length_y * 3, side_length_y * 3], "r--")
+        plt.plot([(side_length_x_center / 2 + side_length_x * 2), -(side_length_x_center / 2 + side_length_x * 2)],
+                 [side_length_y * 4, side_length_y * 4], "r--")
+
+        plt.text(-(side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2,
+                 training_data_output[i, 0, 0], fontsize=10)
+        plt.text(-(side_length_x / 2 + side_length_x_center / 2), side_length_y / 2,
+                 training_data_output[i, 0, 1], fontsize=10)
         plt.text(0.0, side_length_y / 2,
-                 f"{decoded[i, 0, 1]:.1f}", fontsize=10)
-        plt.text((side_length_x + side_length_x_center) / 2, side_length_y / 2,
-                 f"{decoded[i, 0, 2]:.1f}", fontsize=10)
-        plt.text(-(side_length_x + side_length_x_center) / 2, side_length_y + side_length_y / 2,
-                 f"{decoded[i, 0, 3]:.1f}", fontsize=10)
-        plt.text(0.0, side_length_y + side_length_y / 2,
-                 f"{decoded[i, 0, 4]:.1f}", fontsize=10)
-        plt.text((side_length_x + side_length_x_center) / 2, side_length_y + side_length_y / 2,
-                 f"{decoded[i, 0, 5]:.1f}", fontsize=10)
-        plt.text(-(side_length_x + side_length_x_center) / 2, 2 * side_length_y + side_length_y / 2,
-                 f"{decoded[i, 0, 6]:.1f}", fontsize=10)
-        plt.text(0.0, 2 * side_length_y + side_length_y / 2,
-                 f"{decoded[i, 0, 7]:.1f}", fontsize=10)
-        plt.text((side_length_x + side_length_x_center) / 2, 2 * side_length_y + side_length_y / 2,
-                 f"{decoded[i, 0, 8]:.1f}", fontsize=10)
+                 training_data_output[i, 0, 2], fontsize=10)
+        plt.text((side_length_x / 2 + side_length_x_center / 2), side_length_y / 2,
+                 training_data_output[i, 0, 3], fontsize=10)
+        plt.text((side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2,
+                 training_data_output[i, 0, 4], fontsize=10)
+
+        plt.text(-(side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y,
+                 training_data_output[i, 0, 5], fontsize=10)
+        plt.text(-(side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y,
+                 training_data_output[i, 0, 6], fontsize=10)
+        plt.text(0.0, side_length_y / 2 + side_length_y,
+                 training_data_output[i, 0, 7], fontsize=10)
+        plt.text((side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y,
+                 training_data_output[i, 0, 8], fontsize=10)
+        plt.text((side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y,
+                 training_data_output[i, 0, 9], fontsize=10)
+
+        plt.text(-(side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y * 2,
+                 training_data_output[i, 0, 10], fontsize=10)
+        plt.text(-(side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y * 2,
+                 training_data_output[i, 0, 11], fontsize=10)
+        plt.text(0.0, side_length_y / 2 + side_length_y * 2,
+                 training_data_output[i, 0, 12], fontsize=10)
+        plt.text((side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y * 2,
+                 training_data_output[i, 0, 13], fontsize=10)
+        plt.text((side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y * 2,
+                 training_data_output[i, 0, 14], fontsize=10)
+
+        plt.text(-(side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y * 3,
+                 training_data_output[i, 0, 15], fontsize=10)
+        plt.text(-(side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y * 3,
+                 training_data_output[i, 0, 16], fontsize=10)
+        plt.text(0.0, side_length_y / 2 + side_length_y * 3,
+                 training_data_output[i, 0, 17], fontsize=10)
+        plt.text((side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y * 3,
+                 training_data_output[i, 0, 18], fontsize=10)
+        plt.text((side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y * 3,
+                 training_data_output[i, 0, 19], fontsize=10)
+
+        plt.text(-(side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y * 4,
+                 training_data_output[i, 0, 20], fontsize=10)
+        plt.text(-(side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y * 4,
+                 training_data_output[i, 0, 21], fontsize=10)
+        plt.text(0.0, side_length_y / 2 + side_length_y * 4,
+                 training_data_output[i, 0, 22], fontsize=10)
+        plt.text((side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y * 4,
+                 training_data_output[i, 0, 23], fontsize=10)
+        plt.text((side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y * 4,
+                 training_data_output[i, 0, 24], fontsize=10)
 
         if (i + 1) % 100 == 0:
             fig.savefig("../result/09/" + str(i+1) + ".png")
