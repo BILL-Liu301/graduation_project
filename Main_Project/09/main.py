@@ -41,7 +41,7 @@ print(f'testing_data_input: {testing_data_input.shape}')
 print(f'testing_data_output: {testing_data_output.shape}')
 
 # 定义基本参数
-size_basic = 64
+size_basic = 128
 size_encoder_fc_input = data_size - 1  # 减去index
 size_encoder_fc_middle = size_basic
 size_encoder_fc_output = size_basic
@@ -57,8 +57,8 @@ size_decoder_fc_output = int(row * column)
 
 learning_rate_init = 1e-3
 learning_rate = learning_rate_init
-max_epoch = 1000
-batch_ratio = 0.5
+max_epoch = 5000
+batch_ratio = 0.1
 
 
 # 定义编码器
@@ -264,15 +264,15 @@ if mode_switch == 0:
     torch.save(encoder, "end_encoder.pth")
     torch.save(decoder, "end_decoder.pth")
     fig.savefig("figs/finish.png")
-if mode_switch == 0:
+if mode_switch == 1:
     print("模型测试")
 
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")
 
-    check_input = torch.cat([training_data_input, testing_data_input], 0)
-    check_output = torch.cat([training_data_output, testing_data_output], 0)
-    check_output_origin = np.append(training_data_output_origin, testing_data_output_origin, axis=0)
+    check_input = testing_data_input
+    check_output = testing_data_output
+    check_output_origin = testing_data_output_origin
 
     encoded = encoder(check_input)
     decoded = decoder(encoded)
@@ -294,11 +294,8 @@ if mode_switch == 0:
 
         plt.subplot(1, 2, 1)
         softmax = nn.Softmax(dim=0)
-        decoded[i, 0, :] = softmax(torch.tensor(decoded[i, 0, :]))
+        decoded[i, 0, :] = softmax(torch.tensor(decoded[i, 0, :])).numpy()
         plt.plot([0.0, 0.0], [-1.0, 1.0], "r--")
-        lim = 5
-        plt.xlim(-lim, lim)
-        plt.ylim(-lim, lim)
         plt.plot(check_input[i, :, 0], check_input[i, :, 1], ".")
         plt.plot(check_output_origin[i, :, 1], check_output_origin[i, :, 2], ".")
 
@@ -324,59 +321,59 @@ if mode_switch == 0:
                  [side_length_y * 4, side_length_y * 4], "r--")
 
         plt.text(-(side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2,
-                 training_data_output[i, 0, 0], fontsize=10)
+                 f"{decoded[i, 0, 0]:.1f}", fontsize=10)
         plt.text(-(side_length_x / 2 + side_length_x_center / 2), side_length_y / 2,
-                 training_data_output[i, 0, 1], fontsize=10)
+                 f"{decoded[i, 0, 1]:.1f}", fontsize=10)
         plt.text(0.0, side_length_y / 2,
-                 training_data_output[i, 0, 2], fontsize=10)
+                 f"{decoded[i, 0, 2]:.1f}", fontsize=10)
         plt.text((side_length_x / 2 + side_length_x_center / 2), side_length_y / 2,
-                 training_data_output[i, 0, 3], fontsize=10)
+                 f"{decoded[i, 0, 3]:.1f}", fontsize=10)
         plt.text((side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2,
-                 training_data_output[i, 0, 4], fontsize=10)
+                 f"{decoded[i, 0, 4]:.1f}", fontsize=10)
 
         plt.text(-(side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y,
-                 training_data_output[i, 0, 5], fontsize=10)
+                 f"{decoded[i, 0, 5]:.1f}", fontsize=10)
         plt.text(-(side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y,
-                 training_data_output[i, 0, 6], fontsize=10)
+                 f"{decoded[i, 0, 6]:.1f}", fontsize=10)
         plt.text(0.0, side_length_y / 2 + side_length_y,
-                 training_data_output[i, 0, 7], fontsize=10)
+                 f"{decoded[i, 0, 7]:.1f}", fontsize=10)
         plt.text((side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y,
-                 training_data_output[i, 0, 8], fontsize=10)
+                 f"{decoded[i, 0, 8]:.1f}", fontsize=10)
         plt.text((side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y,
-                 training_data_output[i, 0, 9], fontsize=10)
+                 f"{decoded[i, 0, 9]:.1f}", fontsize=10)
 
         plt.text(-(side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y * 2,
-                 training_data_output[i, 0, 10], fontsize=10)
+                 f"{decoded[i, 0, 10]:.1f}", fontsize=10)
         plt.text(-(side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y * 2,
-                 training_data_output[i, 0, 11], fontsize=10)
+                 f"{decoded[i, 0, 11]:.1f}", fontsize=10)
         plt.text(0.0, side_length_y / 2 + side_length_y * 2,
-                 training_data_output[i, 0, 12], fontsize=10)
+                 f"{decoded[i, 0, 12]:.1f}", fontsize=10)
         plt.text((side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y * 2,
-                 training_data_output[i, 0, 13], fontsize=10)
+                 f"{decoded[i, 0, 13]:.1f}", fontsize=10)
         plt.text((side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y * 2,
-                 training_data_output[i, 0, 14], fontsize=10)
+                 f"{decoded[i, 0, 14]:.1f}", fontsize=10)
 
         plt.text(-(side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y * 3,
-                 training_data_output[i, 0, 15], fontsize=10)
+                 f"{decoded[i, 0, 15]:.1f}", fontsize=10)
         plt.text(-(side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y * 3,
-                 training_data_output[i, 0, 16], fontsize=10)
+                 f"{decoded[i, 0, 16]:.1f}", fontsize=10)
         plt.text(0.0, side_length_y / 2 + side_length_y * 3,
-                 training_data_output[i, 0, 17], fontsize=10)
+                 f"{decoded[i, 0, 17]:.1f}", fontsize=10)
         plt.text((side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y * 3,
-                 training_data_output[i, 0, 18], fontsize=10)
+                 f"{decoded[i, 0, 18]:.1f}", fontsize=10)
         plt.text((side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y * 3,
-                 training_data_output[i, 0, 19], fontsize=10)
+                 f"{decoded[i, 0, 19]:.1f}", fontsize=10)
 
         plt.text(-(side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y * 4,
-                 training_data_output[i, 0, 20], fontsize=10)
+                 f"{decoded[i, 0, 20]:.1f}", fontsize=10)
         plt.text(-(side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y * 4,
-                 training_data_output[i, 0, 21], fontsize=10)
+                 f"{decoded[i, 0, 21]:.1f}", fontsize=10)
         plt.text(0.0, side_length_y / 2 + side_length_y * 4,
-                 training_data_output[i, 0, 22], fontsize=10)
+                 f"{decoded[i, 0, 22]:.1f}", fontsize=10)
         plt.text((side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y * 4,
-                 training_data_output[i, 0, 23], fontsize=10)
+                 f"{decoded[i, 0, 23]:.1f}", fontsize=10)
         plt.text((side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y * 4,
-                 training_data_output[i, 0, 24], fontsize=10)
+                 f"{decoded[i, 0, 24]:.1f}", fontsize=10)
 
         if (i + 1) % 100 == 0:
             fig.savefig("../result/09/" + str(i+1) + ".png")
