@@ -57,8 +57,8 @@ size_decoder_fc_output = int(row * column)
 
 learning_rate_init = 1e-3
 learning_rate = learning_rate_init
-max_epoch = 1000
-batch_ratio = 0.2
+max_epoch = 5000
+batch_ratio = 0.1
 
 
 # 定义编码器
@@ -67,7 +67,7 @@ class Encoder(nn.Module):
                  encoder_lstm_input_size, encoder_lstm_hidden_size,
                  encoder_activate_num_parameters_size):
         super(Encoder, self).__init__()
-        self.encoder_activate_init = 0.05
+        self.encoder_activate_init = 0.5
         self.encoder_lstm_hidden_size = encoder_lstm_hidden_size
         self.encoder_bias = True
         self.encoder_lstm_num_layers = 1
@@ -103,12 +103,12 @@ class Encoder(nn.Module):
         out = self.encoder_batch_normalization(out)
         out = self.encoder_fc2(self.encoder_activate(out))
         out = self.encoder_batch_normalization(out)
-        out = self.encoder_fc3(self.encoder_activate(out))
-        out = self.encoder_batch_normalization(out)
-        out = self.encoder_fc4(self.encoder_activate(out))
-        out = self.encoder_batch_normalization(out)
-        out = self.encoder_fc5(self.encoder_activate(out))
-        out = self.encoder_batch_normalization(out)
+        # out = self.encoder_fc3(self.encoder_activate(out))
+        # out = self.encoder_batch_normalization(out)
+        # out = self.encoder_fc4(self.encoder_activate(out))
+        # out = self.encoder_batch_normalization(out)
+        # out = self.encoder_fc5(self.encoder_activate(out))
+        # out = self.encoder_batch_normalization(out)
         # out = self.encoder_fc6(self.encoder_activate(out))
         # out = self.encoder_fc7(self.encoder_activate(out))
         out = self.encoder_fc8(self.encoder_activate(out))
@@ -127,7 +127,7 @@ class Decoder(nn.Module):
         super(Decoder, self).__init__()
         self.decoder_lstm_hidden_size = decoder_lstm_hidden_size
         self.decoder_bias = True
-        self.decoder_activate_init = 0.05
+        self.decoder_activate_init = 0.5
         self.decoder_lstm_num_layers = 1
 
         self.decoder_lstm = nn.LSTM(decoder_lstm_input_size, decoder_lstm_hidden_size,
@@ -157,12 +157,12 @@ class Decoder(nn.Module):
         out = self.decoder_batch_normalization(out)
         out = self.decoder_fc2(self.decoder_activate(out))
         out = self.decoder_batch_normalization(out)
-        out = self.decoder_fc3(self.decoder_activate(out))
-        out = self.decoder_batch_normalization(out)
-        out = self.decoder_fc4(self.decoder_activate(out))
-        out = self.decoder_batch_normalization(out)
-        out = self.decoder_fc5(self.decoder_activate(out))
-        out = self.decoder_batch_normalization(out)
+        # out = self.decoder_fc3(self.decoder_activate(out))
+        # out = self.decoder_batch_normalization(out)
+        # out = self.decoder_fc4(self.decoder_activate(out))
+        # out = self.decoder_batch_normalization(out)
+        # out = self.decoder_fc5(self.decoder_activate(out))
+        # out = self.decoder_batch_normalization(out)
         # out = self.decoder_fc6(self.decoder_activate(out))
         # out = self.decoder_fc7(self.decoder_activate(out))
         out = self.decoder_fc8(self.decoder_activate(out))
@@ -270,22 +270,31 @@ if mode_switch == 1:
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")
 
-    check_input = testing_data_input
-    check_output = testing_data_output
-    check_output_origin = training_data_output_origin
+    check_input = torch.cat([training_data_input, testing_data_input], 0)
+    check_output = torch.cat([training_data_output, testing_data_output], 0)
+    check_output_origin = np.append(training_data_output_origin, testing_data_output_origin, axis=0)
 
     encoded = encoder(check_input)
     decoded = decoder(encoded)
-    loss = criterion(decoded[:, 0, :], check_output[:, 0, :]) * check_output.shape[0]
-    decoded = softmax(decoded)
+    loss = criterion(decoded[:, 0, :], check_output[:, 0, :])
     print(loss.item())
 
     check_input = check_input.cpu().detach().numpy()
     check_output = check_output.cpu().detach().numpy()
     decoded = decoded.cpu().detach().numpy()
 
+    all_loss = np.zeros([1])
     for i in range(check_output.shape[0]):
         plt.clf()
+
+        plt.subplot(1, 2, 2)
+        all_loss[-1] = criterion(torch.tensor(decoded[i, 0, :]), torch.tensor(check_output[i, 0, :])).item()
+        plt.plot(all_loss)
+        all_loss = np.append(all_loss, np.zeros([1]), axis=0)
+
+        plt.subplot(1, 2, 1)
+        softmax = nn.Softmax(dim=0)
+        decoded[i, 0, :] = softmax(torch.tensor(decoded[i, 0, :]))
         plt.plot([0.0, 0.0], [-1.0, 1.0], "r--")
         lim = 5
         plt.xlim(-lim, lim)
@@ -303,23 +312,25 @@ if mode_switch == 1:
         plt.plot([(side_length_x_center + side_length_x / 2), -(side_length_x_center + side_length_x / 2)],
                  [side_length_y * 2, side_length_y * 2], "r--")
         plt.text(-(side_length_x + side_length_x_center) / 2, side_length_y / 2,
-                 decoded[i, 0, 0], fontsize=10)
+                 f"{decoded[i, 0, 0]:.1f}", fontsize=10)
         plt.text(0.0, side_length_y / 2,
-                 decoded[i, 0, 1], fontsize=10)
+                 f"{decoded[i, 0, 1]:.1f}", fontsize=10)
         plt.text((side_length_x + side_length_x_center) / 2, side_length_y / 2,
-                 decoded[i, 0, 2], fontsize=10)
+                 f"{decoded[i, 0, 2]:.1f}", fontsize=10)
         plt.text(-(side_length_x + side_length_x_center) / 2, side_length_y + side_length_y / 2,
-                 decoded[i, 0, 3], fontsize=10)
+                 f"{decoded[i, 0, 3]:.1f}", fontsize=10)
         plt.text(0.0, side_length_y + side_length_y / 2,
-                 decoded[i, 0, 4], fontsize=10)
+                 f"{decoded[i, 0, 4]:.1f}", fontsize=10)
         plt.text((side_length_x + side_length_x_center) / 2, side_length_y + side_length_y / 2,
-                 decoded[i, 0, 5], fontsize=10)
+                 f"{decoded[i, 0, 5]:.1f}", fontsize=10)
         plt.text(-(side_length_x + side_length_x_center) / 2, 2 * side_length_y + side_length_y / 2,
-                 decoded[i, 0, 6], fontsize=10)
+                 f"{decoded[i, 0, 6]:.1f}", fontsize=10)
         plt.text(0.0, 2 * side_length_y + side_length_y / 2,
-                 decoded[i, 0, 7], fontsize=10)
+                 f"{decoded[i, 0, 7]:.1f}", fontsize=10)
         plt.text((side_length_x + side_length_x_center) / 2, 2 * side_length_y + side_length_y / 2,
-                 decoded[i, 0, 8], fontsize=10)
-        if (i + 1) % 20 == 0:
+                 f"{decoded[i, 0, 8]:.1f}", fontsize=10)
+
+        if (i + 1) % 100 == 0:
             fig.savefig("../result/09/" + str(i+1) + ".png")
         plt.pause(0.01)
+    fig.savefig("../result/09/end.png")

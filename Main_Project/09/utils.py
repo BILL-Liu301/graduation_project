@@ -44,7 +44,7 @@ column = 3
 # 分割input和output
 input_size = int(0.5 * seq_size)
 output_size = seq_size - input_size
-train_size = int(0.8 * data_reshape.shape[0])
+train_size = int(0.7 * data_reshape.shape[0])
 test_size = data_reshape.shape[0] - train_size
 
 training_data_input = np.array(data_reshape[0:train_size, 0:input_size, :])
