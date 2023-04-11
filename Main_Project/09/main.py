@@ -191,11 +191,11 @@ fig = plt.figure()
 if mode_switch == 0:
     print("进行模型训练")
 
-    scheduler_encoder = scheduler.StepLR(optimizer_encoder, step_size=100, gamma=0.9, last_epoch=-1)
-    scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=100, gamma=0.9, last_epoch=-1)
+    scheduler_encoder = scheduler.StepLR(optimizer_encoder, step_size=50, gamma=0.9, last_epoch=-1)
+    scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=50, gamma=0.9, last_epoch=-1)
 
     all_loss = np.zeros([1, int(1 / batch_ratio)])
-    all_grad_abs = np.zeros([1, 2])
+    all_grad_abs = np.array([[0.0, 10]])
     for epoch in range(max_epoch):
         batch_size = training_data_input.shape[0] * batch_ratio
         for each_batch in range(int(1 / batch_ratio)):
@@ -228,11 +228,11 @@ if mode_switch == 0:
             if abs(param.grad.cpu().numpy().min()) >= all_grad_abs[-1, 0]:
                 all_grad_abs[-1, 0] = param.grad.cpu().numpy().min()
 
-            if True:
-                temp = param.grad.cpu().numpy()
-                temp = temp[np.nonzero(temp)]
-                all_grad_abs[-1, 1] = temp[np.abs(temp).argmin()]
-
+            temp = param.grad.cpu().numpy()
+            temp = temp[np.nonzero(temp)]
+            temp = temp[np.abs(temp).argmin()]
+            if abs(all_grad_abs[-1, 1]) >= abs(temp):
+                all_grad_abs[-1, 1] = temp
         plt.clf()
 
         plt.subplot(3, 1, 1)
@@ -251,7 +251,7 @@ if mode_switch == 0:
         plt.pause(0.01)
 
         all_loss = np.append(all_loss, np.zeros([1, int(1 / batch_ratio)]), axis=0)
-        all_grad_abs = np.append(all_grad_abs, np.zeros([1, 2]), axis=0)
+        all_grad_abs = np.append(all_grad_abs, np.array([[0.0, 10]]), axis=0)
 
         scheduler_encoder.step()
         scheduler_decoder.step()
@@ -264,11 +264,123 @@ if mode_switch == 0:
     torch.save(encoder, "end_encoder.pth")
     torch.save(decoder, "end_decoder.pth")
     fig.savefig("figs/finish.png")
-if mode_switch == 1:
+if mode_switch == 0:
     print("模型测试")
 
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")
+    encoder.eval()
+    decoder.eval()
+
+    check_input = training_data_input
+    check_output = training_data_output
+    check_output_origin = training_data_output_origin
+
+    encoded = encoder(check_input)
+    decoded = decoder(encoded)
+    loss = criterion(decoded[:, 0, :], check_output[:, 0, :])
+    print(loss.item())
+
+    check_input = check_input.cpu().detach().numpy()
+    check_output = check_output.cpu().detach().numpy()
+    decoded = decoded.cpu().detach().numpy()
+
+    all_loss = np.zeros([1])
+    for i in range(check_output.shape[0]):
+        plt.clf()
+
+        plt.subplot(1, 2, 2)
+        all_loss[-1] = criterion(torch.tensor(decoded[i, 0, :]), torch.tensor(check_output[i, 0, :])).item()
+        plt.plot(all_loss)
+        all_loss = np.append(all_loss, np.zeros([1]), axis=0)
+
+        plt.subplot(1, 2, 1)
+        softmax = nn.Softmax(dim=0)
+        decoded[i, 0, :] = softmax(torch.tensor(decoded[i, 0, :])).numpy()
+        plt.plot([0.0, 0.0], [-1.0, 1.0], "r--")
+        plt.plot(check_input[i, :, 0], check_input[i, :, 1], ".")
+        plt.plot(check_output_origin[i, :, 1], check_output_origin[i, :, 2], ".")
+
+        lim = 8
+        plt.xlim(-(int(column / 2) * side_length_x + side_length_x_center / 2),
+                 (int(column / 2) * side_length_x + side_length_x_center / 2))
+        plt.ylim(0.0, row * side_length_y)
+
+        plt.plot([side_length_x_center / 2, side_length_x_center / 2], [0.0, side_length_y * row], "r--")
+        plt.plot([-side_length_x_center / 2, -side_length_x_center / 2], [0.0, side_length_y * row], "r--")
+        plt.plot([-(side_length_x_center / 2 + side_length_x), -(side_length_x_center / 2 + side_length_x)],
+                 [0.0, side_length_y * row], "r--")
+        plt.plot([(side_length_x_center / 2 + side_length_x), (side_length_x_center / 2 + side_length_x)],
+                 [0.0, side_length_y * row], "r--")
+
+        plt.plot([(side_length_x_center / 2 + side_length_x * 2), -(side_length_x_center / 2 + side_length_x * 2)],
+                 [side_length_y, side_length_y], "r--")
+        plt.plot([(side_length_x_center / 2 + side_length_x * 2), -(side_length_x_center / 2 + side_length_x * 2)],
+                 [side_length_y * 2, side_length_y * 2], "r--")
+        plt.plot([(side_length_x_center / 2 + side_length_x * 2), -(side_length_x_center / 2 + side_length_x * 2)],
+                 [side_length_y * 3, side_length_y * 3], "r--")
+        plt.plot([(side_length_x_center / 2 + side_length_x * 2), -(side_length_x_center / 2 + side_length_x * 2)],
+                 [side_length_y * 4, side_length_y * 4], "r--")
+
+        plt.text(-(side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2,
+                 f"{decoded[i, 0, 0]:.1f}", fontsize=10)
+        plt.text(-(side_length_x / 2 + side_length_x_center / 2), side_length_y / 2,
+                 f"{decoded[i, 0, 1]:.1f}", fontsize=10)
+        plt.text(0.0, side_length_y / 2,
+                 f"{decoded[i, 0, 2]:.1f}", fontsize=10)
+        plt.text((side_length_x / 2 + side_length_x_center / 2), side_length_y / 2,
+                 f"{decoded[i, 0, 3]:.1f}", fontsize=10)
+        plt.text((side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2,
+                 f"{decoded[i, 0, 4]:.1f}", fontsize=10)
+
+        plt.text(-(side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y,
+                 f"{decoded[i, 0, 5]:.1f}", fontsize=10)
+        plt.text(-(side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y,
+                 f"{decoded[i, 0, 6]:.1f}", fontsize=10)
+        plt.text(0.0, side_length_y / 2 + side_length_y,
+                 f"{decoded[i, 0, 7]:.1f}", fontsize=10)
+        plt.text((side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y,
+                 f"{decoded[i, 0, 8]:.1f}", fontsize=10)
+        plt.text((side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y,
+                 f"{decoded[i, 0, 9]:.1f}", fontsize=10)
+
+        plt.text(-(side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y * 2,
+                 f"{decoded[i, 0, 10]:.1f}", fontsize=10)
+        plt.text(-(side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y * 2,
+                 f"{decoded[i, 0, 11]:.1f}", fontsize=10)
+        plt.text(0.0, side_length_y / 2 + side_length_y * 2,
+                 f"{decoded[i, 0, 12]:.1f}", fontsize=10)
+        plt.text((side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y * 2,
+                 f"{decoded[i, 0, 13]:.1f}", fontsize=10)
+        plt.text((side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y * 2,
+                 f"{decoded[i, 0, 14]:.1f}", fontsize=10)
+
+        plt.text(-(side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y * 3,
+                 f"{decoded[i, 0, 15]:.1f}", fontsize=10)
+        plt.text(-(side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y * 3,
+                 f"{decoded[i, 0, 16]:.1f}", fontsize=10)
+        plt.text(0.0, side_length_y / 2 + side_length_y * 3,
+                 f"{decoded[i, 0, 17]:.1f}", fontsize=10)
+        plt.text((side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y * 3,
+                 f"{decoded[i, 0, 18]:.1f}", fontsize=10)
+        plt.text((side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y * 3,
+                 f"{decoded[i, 0, 19]:.1f}", fontsize=10)
+
+        plt.text(-(side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y * 4,
+                 f"{decoded[i, 0, 20]:.1f}", fontsize=10)
+        plt.text(-(side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y * 4,
+                 f"{decoded[i, 0, 21]:.1f}", fontsize=10)
+        plt.text(0.0, side_length_y / 2 + side_length_y * 4,
+                 f"{decoded[i, 0, 22]:.1f}", fontsize=10)
+        plt.text((side_length_x / 2 + side_length_x_center / 2), side_length_y / 2 + side_length_y * 4,
+                 f"{decoded[i, 0, 23]:.1f}", fontsize=10)
+        plt.text((side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y * 4,
+                 f"{decoded[i, 0, 24]:.1f}", fontsize=10)
+
+        if (i + 1) % 300 == 0:
+            fig.savefig("../result/09/0_" + str(i + 1) + ".png")
+        plt.pause(0.001)
+    fig.savefig("../result/09/train.png")
 
     check_input = testing_data_input
     check_output = testing_data_output
@@ -375,7 +487,7 @@ if mode_switch == 1:
         plt.text((side_length_x / 2 + side_length_x + side_length_x_center / 2), side_length_y / 2 + side_length_y * 4,
                  f"{decoded[i, 0, 24]:.1f}", fontsize=10)
 
-        if (i + 1) % 100 == 0:
-            fig.savefig("../result/09/" + str(i+1) + ".png")
+        if (i + 1) % 300 == 0:
+            fig.savefig("../result/09/1_" + str(i+1) + ".png")
         plt.pause(0.001)
-    fig.savefig("../result/09/end.png")
+    fig.savefig("../result/09/test.png")
