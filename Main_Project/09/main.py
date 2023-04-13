@@ -55,10 +55,10 @@ size_decoder_fc_input = size_decoder_lstm_hidden
 size_decoder_fc_middle = size_basic
 size_decoder_fc_output = int(row * column)
 
-learning_rate_init = 1e-3
+learning_rate_init = 1e-2
 learning_rate = learning_rate_init
-max_epoch = 5000
-batch_ratio = 0.1
+max_epoch = 10000
+batch_ratio = 1
 
 
 # 定义编码器
@@ -100,11 +100,11 @@ class Encoder(nn.Module):
         c1 = torch.ones(self.encoder_lstm_num_layers, x.size(0), self.encoder_lstm_hidden_size).to(device)
 
         out = self.encoder_fc1(x)
-        # out = self.encoder_batch_normalization(out)
-        # out = self.encoder_fc2(self.encoder_activate(out))
-        # out = self.encoder_batch_normalization(out)
-        # out = self.encoder_fc3(self.encoder_activate(out))
-        # out = self.encoder_batch_normalization(out)
+        out = self.encoder_batch_normalization(out)
+        out = self.encoder_fc2(self.encoder_activate(out))
+        out = self.encoder_batch_normalization(out)
+        out = self.encoder_fc3(self.encoder_activate(out))
+        out = self.encoder_batch_normalization(out)
         # out = self.encoder_fc4(self.encoder_activate(out))
         # out = self.encoder_batch_normalization(out)
         # out = self.encoder_fc5(self.encoder_activate(out))
@@ -112,7 +112,7 @@ class Encoder(nn.Module):
         # out = self.encoder_fc6(self.encoder_activate(out))
         # out = self.encoder_fc7(self.encoder_activate(out))
         out = self.encoder_fc8(self.encoder_activate(out))
-        # out = self.encoder_batch_normalization(out)
+        out = self.encoder_batch_normalization(out)
         out_front, _ = self.encoder_lstm_front(out, (h0, c0))
         out_back, _ = self.encoder_lstm_back(out.flip(dims=[1]), (h1, c1))
         out = torch.add(out_front, out_back)
@@ -154,11 +154,11 @@ class Decoder(nn.Module):
 
     def forward(self, x):
         out = self.decoder_fc1(self.decoder_activate(x))
-        # out = self.decoder_batch_normalization(out)
-        # out = self.decoder_fc2(self.decoder_activate(out))
-        # out = self.decoder_batch_normalization(out)
-        # out = self.decoder_fc3(self.decoder_activate(out))
-        # out = self.decoder_batch_normalization(out)
+        out = self.decoder_batch_normalization(out)
+        out = self.decoder_fc2(self.decoder_activate(out))
+        out = self.decoder_batch_normalization(out)
+        out = self.decoder_fc3(self.decoder_activate(out))
+        out = self.decoder_batch_normalization(out)
         # out = self.decoder_fc4(self.decoder_activate(out))
         # out = self.decoder_batch_normalization(out)
         # out = self.decoder_fc5(self.decoder_activate(out))
@@ -264,7 +264,7 @@ if mode_switch == 0:
     torch.save(encoder, "end_encoder.pth")
     torch.save(decoder, "end_decoder.pth")
     fig.savefig("figs/finish.png")
-if mode_switch == 0:
+if mode_switch == 1:
     print("模型测试")
 
     encoder = torch.load("end_encoder.pth")
@@ -298,7 +298,7 @@ if mode_switch == 0:
         softmax = nn.Softmax(dim=0)
         decoded[i, 0, :] = softmax(torch.tensor(decoded[i, 0, :])).numpy()
         plt.plot([0.0, 0.0], [-1.0, 1.0], "r--")
-        plt.plot(check_input[i, :, 0], check_input[i, :, 1], ".")
+        # plt.plot(check_input[i, :, 0], check_input[i, :, 1], ".")
         plt.plot(check_output_origin[i, :, 1], check_output_origin[i, :, 2], ".")
 
         lim = 8
@@ -408,7 +408,7 @@ if mode_switch == 0:
         softmax = nn.Softmax(dim=0)
         decoded[i, 0, :] = softmax(torch.tensor(decoded[i, 0, :])).numpy()
         plt.plot([0.0, 0.0], [-1.0, 1.0], "r--")
-        plt.plot(check_input[i, :, 0], check_input[i, :, 1], ".")
+        # plt.plot(check_input[i, :, 0], check_input[i, :, 1], ".")
         plt.plot(check_output_origin[i, :, 1], check_output_origin[i, :, 2], ".")
 
         lim = 8
