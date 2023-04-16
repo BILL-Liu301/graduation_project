@@ -10,15 +10,15 @@ split_size = 8
 data_size = 3
 
 # # stamp x y Vx Vy
-# data = np.load("source.npy")[:, 0:data_size]
+# npys = np.load("source.npys")[:, 0:data_size]
 #
 # # 滑窗重组
 # data_reshape = np.array([[0, 0.0, 0.0]])
-# for i in range(0, data.shape[0] - jump_size - seq_size*split_size, jump_size):
+# for i in range(0, npys.shape[0] - jump_size - seq_size*split_size, jump_size):
 #     for j in range(0, seq_size*split_size, split_size):
-#         data_reshape[-1, :] = np.array(data[i+j, :])
+#         data_reshape[-1, :] = np.array(npys[i+j, :])
 #         data_reshape = np.r_[data_reshape, np.array([[0, 0.0, 0.0]])]
-# np.save("data_reshape.npy", data_reshape)
+# np.save("data_reshape.npys", data_reshape)
 
 # 加载滑窗重组的结果
 data_reshape = np.load("data_reshape.npy")

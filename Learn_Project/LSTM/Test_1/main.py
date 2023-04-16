@@ -115,7 +115,7 @@ if __name__ == '__main__':
     # plt.legend(loc='upper right')
 
     # choose dataset for training and testing
-    train_data_ratio = 0.5  # Choose 50% of the data for testing
+    train_data_ratio = 0.5  # Choose 50% of the npys for testing
     train_data_len = int(data_len * train_data_ratio)
     train_original = dataset[0:train_data_len, 0]
     train_predict = dataset[INPUT_FEATURES_NUM:train_data_len, 1]
@@ -129,7 +129,7 @@ if __name__ == '__main__':
     test_original_tensor = reshape_original_data(test_original, ROWS, INPUT_FEATURES_NUM, OUTPUT_FEATURES_NUM)
     test_predict_tensor = test_predict.reshape(-1, ROWS, OUTPUT_FEATURES_NUM)
 
-    # transfer data to pytorch tensor
+    # transfer npys to pytorch tensor
     train_original_tensor = torch.from_numpy(train_original_tensor).to(torch.float32)
     train_predict_tensor = torch.from_numpy(train_predict_tensor).to(torch.float32)
     test_original_tensor = torch.from_numpy(test_original_tensor).to(torch.float32)

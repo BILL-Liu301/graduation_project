@@ -8,13 +8,13 @@ import matplotlib.pyplot as plt
 # file_data = open(file_name, 'r')
 # file_data_lines = file_data.readlines()
 # data_size = 3
-# data = np.zeros((len(file_data_lines), data_size))
+# npys = np.zeros((len(file_data_lines), data_size))
 # temp = 0
 # for row in file_data_lines:
 #     find_data = row.split(' ')
-#     data[temp, 0] = float(find_data[0])
-#     data[temp, 1] = float(find_data[1])
-#     data[temp, 2] = float(find_data[2])
+#     npys[temp, 0] = float(find_data[0])
+#     npys[temp, 1] = float(find_data[1])
+#     npys[temp, 2] = float(find_data[2])
 #     temp += 1
 #
 # seq_size = 50
@@ -22,14 +22,14 @@ import matplotlib.pyplot as plt
 # split_size = 10
 # # # 滑窗重组
 # # data_reshape = np.array([[0, 0.0, 0.0]])
-# # for i in range(0, data.shape[0] - jump_size - seq_size*split_size, jump_size):
+# # for i in range(0, npys.shape[0] - jump_size - seq_size*split_size, jump_size):
 # #     for j in range(0, seq_size*split_size, split_size):
-# #         data_reshape[-1, :] = np.array(data[i+j, :])
+# #         data_reshape[-1, :] = np.array(npys[i+j, :])
 # #         data_reshape = np.r_[data_reshape, np.array([[0, 0.0, 0.0]])]
-# # np.save("data_reshape.npy", data_reshape)
+# # np.save("data_reshape.npys", data_reshape)
 #
 # # 加载滑窗重组的结果
-# data_reshape = np.load("data_reshape.npy")
+# data_reshape = np.load("data_reshape.npys")
 # data_reshape = np.delete(data_reshape, [-1], 0)
 # data_reshape = np.array(data_reshape.reshape(-1, seq_size, data_size))
 #
@@ -54,19 +54,19 @@ jump_size = int(seq_size / 3)
 split_size = 1
 
 # # time x y V car_id
-# path = "./datas/"
+# path = "./npys/"
 # files = sorted(os.listdir(path), reverse=False)
 # # time x y
 # data_reshape = np.array([[0, 0.0, 0.0, 0]])
 # for file in files:
 #     print(path + str(file))
-#     data = np.load(path + str(file))
-#     for i in range(0, data.shape[0] - jump_size - seq_size*split_size, jump_size):
+#     npys = np.load(path + str(file))
+#     for i in range(0, npys.shape[0] - jump_size - seq_size*split_size, jump_size):
 #         for j in range(0, seq_size*split_size, split_size):
-#             data_reshape[-1, :] = np.array(data[i+j, [0, 1, 2, 4]])
+#             data_reshape[-1, :] = np.array(npys[i+j, [0, 1, 2, 4]])
 #             data_reshape = np.r_[data_reshape, np.array([[0, 0.0, 0.0, 0]])]
 #     print(str(file), data_reshape.shape)
-# np.save("data_reshape.npy", data_reshape)
+# np.save("data_reshape.npys", data_reshape)
 
 data_reshape = np.load("data_reshape.npy")
 data_reshape = np.delete(data_reshape, [-1], 0)

@@ -32,11 +32,11 @@ jump_size = int(seq_size / 2)
 split_size = 1
 # 滑窗重组
 # data_reshape = np.array([[0, 0.0, 0.0, 0.0, 0.0]])
-# for i in range(0, data.shape[0] - jump_size, jump_size):
+# for i in range(0, npys.shape[0] - jump_size, jump_size):
 #     for j in range(0, seq_size*split_size, split_size):
-#         data_reshape[-1, :] = np.array(data[i+j, :])
+#         data_reshape[-1, :] = np.array(npys[i+j, :])
 #         data_reshape = np.r_[data_reshape, np.array([[0, 0.0, 0.0, 0.0, 0.0]])]
-# np.save("data_reshape.npy", data_reshape)
+# np.save("data_reshape.npys", data_reshape)
 
 # 加载滑窗重组的结果
 data_reshape = np.load("data_reshape.npy")
@@ -174,10 +174,10 @@ testing_data_input = testing_data_input[:, :, 1:5]
 testing_data_output = np.squeeze(testing_data_output, axis=1)
 
 
-# np.save("training_data_input.npy", training_data_input)
-# np.save("training_data_output.npy", training_data_output)
-# np.save("testing_data_input.npy", testing_data_input)
-# np.save("testing_data_output.npy", testing_data_output)
+# np.save("training_data_input.npys", training_data_input)
+# np.save("training_data_output.npys", training_data_output)
+# np.save("testing_data_input.npys", testing_data_input)
+# np.save("testing_data_output.npys", testing_data_output)
 
 def criterion(predicted, actual):
     middle = torch.zeros([predicted.shape[0], predicted.shape[1], 1, predicted.shape[3]]).to(torch.device('cuda:0'))

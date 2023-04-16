@@ -29,11 +29,11 @@ for car_id in range(1, car_ids):
     data_temp[:, 0] = data_temp[:, 0] - init_t
     data_temp[:, 1] = (data_temp[:, 1] - init_x) * k_x
     data_temp[:, 2] = (data_temp[:, 2] - init_y) * k_y
-    np.save("Ubiquitous_Traffic_Eyes/datas/" + str(car_id) + ".npy", data_temp)
+    np.save("Ubiquitous_Traffic_Eyes/npys/" + str(car_id) + ".npys", data_temp)
 
 plt.figure()
 for car_id in range(1, car_ids):
-    data_temp = np.load("Ubiquitous_Traffic_Eyes/datas/" + str(car_id) + ".npy")
+    data_temp = np.load("Ubiquitous_Traffic_Eyes/npys/" + str(car_id) + ".npys")
     plt.xlim(-800, 150)
     plt.ylim(-300, 300)
     for i in range(data_temp.shape[0]):
