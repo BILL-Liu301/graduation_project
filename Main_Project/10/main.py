@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.optim as optim
 from util import training_data_input_xy, training_data_input_white_line, training_data_input_lane
 from util import testing_data_input_xy, testing_data_input_white_line, testing_data_input_lane
-from util import training_data_output, testing_data_output
+from util import training_data_output, testing_data_output, index_box
 from util import data_size, input_size, row, column
 import matplotlib.pyplot as plt
 import torch.optim.lr_scheduler as scheduler
@@ -50,6 +50,10 @@ print(f'testing_data_input_white_line: {testing_data_input_white_line.shape}')
 print(f'testing_data_input_lane: {testing_data_input_lane.shape}')
 print(f'testing_data_output: {testing_data_output.shape}')
 
+# 模式选取
+mode_switch = int(input("请进行模式选择："))
+vector_map_switch = int(input("请进行是否启用vector_map："))
+
 # 定义基本参数
 size_basic = 256
 size_encoder_fc_input = data_size - 1  # 减去index
@@ -59,7 +63,7 @@ size_encoder_lstm_input = size_encoder_fc_output
 size_encoder_lstm_hidden = size_basic
 size_encoder_activate_num_parameters = input_size
 
-size_decoder_lstm_input = size_encoder_lstm_hidden + 2 * row * column
+size_decoder_lstm_input = size_encoder_lstm_hidden + 2 * row * column * vector_map_switch
 size_decoder_lstm_hidden = size_basic
 size_decoder_fc_input = size_decoder_lstm_hidden
 size_decoder_fc_middle = size_basic
@@ -180,14 +184,13 @@ decoder = Decoder(size_decoder_lstm_input, size_decoder_lstm_hidden,
                   size_decoder_fc_input, size_decoder_fc_middle, size_decoder_fc_output).to(device)
 connector = Connector(size_connector_fc_input, size_connector_fc_middle, size_connector_fc_output).to(device)
 
+print(decoder)
+
 # 优化器和损失函数
 optimizer_encoder = optim.Adam(encoder.parameters(), lr=learning_rate)
 optimizer_decoder = optim.Adam(decoder.parameters(), lr=learning_rate)
 optimizer_connector = optim.Adam(connector.parameters(), lr=learning_rate)
 criterion = nn.MSELoss()
-
-# 模式选取
-mode_switch = int(input("请进行模式选择："))
 
 # 主要部分
 t_start = time.time()
@@ -202,7 +205,8 @@ if mode_switch == 0:
     for epoch in range(max_epoch):
         torch.cuda.empty_cache()
         encoded, (h_encoded, c_encoded) = encoder(training_data_input_xy)
-        encoded = torch.cat([encoded, training_data_input_white_line, training_data_input_lane], 2)
+        if vector_map_switch == 1:
+            encoded = torch.cat([encoded, training_data_input_white_line, training_data_input_lane], 2)
         decoded, _ = decoder(encoded, h_encoded, c_encoded)
         loss = criterion(decoded, training_data_output[:, 0, :].unsqueeze(1))
         print('当前显卡的显存使用率:',
@@ -262,7 +266,8 @@ if mode_switch == 1:
     check_output = training_data_output
 
     encoded, (h_encoded, c_encoded) = encoder(check_input_xy)
-    encoded = torch.cat([encoded, check_input_white_line, check_input_lane], 2)
+    if vector_map_switch == 1:
+        encoded = torch.cat([encoded, check_input_white_line, check_input_lane], 2)
     decoded, _ = decoder(encoded, h_encoded, c_encoded)
     loss = criterion(decoded, check_output[:, 0, :].unsqueeze(1)) * check_output.shape[0]
     print(loss.item())
@@ -273,7 +278,7 @@ if mode_switch == 1:
                  np.append(check_output.cpu().detach().numpy()[i, 0, 1],
                            decoded.cpu().detach().numpy()[i, :, 1]))
     plt.show()
-if mode_switch == 2:
+if mode_switch == 0:
     print("进行连接模型训练")
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")
@@ -297,13 +302,15 @@ if mode_switch == 2:
                 train_output = training_data_output[int(each_batch * batch_size):int((each_batch + 1) * batch_size), :, :]
 
                 encoded, (h_encoded, c_encoded) = encoder(train_input_xy)
-                encoded = torch.cat([encoded, train_input_white_line, train_input_lane], 2)
+                if vector_map_switch == 1:
+                    encoded = torch.cat([encoded, train_input_white_line, train_input_lane], 2)
                 decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
                 decoded_clone = decoded.clone()
                 for point in range(points):
                     connected = connector(decoded)
                     encoded, h_encoded, c_encoded = connected, h_decoded, c_decoded
-                    encoded = torch.cat([encoded, train_input_white_line, train_input_lane], 2)
+                    if vector_map_switch == 1:
+                        encoded = torch.cat([encoded, train_input_white_line, train_input_lane], 2)
                     decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
                     decoded_clone = torch.cat((decoded_clone.clone(), decoded.clone()), 1)
 
@@ -385,14 +392,16 @@ if mode_switch == 3:
     check_output = testing_data_output
 
     encoded, (h_encoded, c_encoded) = encoder(check_input_xy)
-    encoded = torch.cat([encoded, check_input_white_line, check_input_lane], 2)
+    if vector_map_switch == 1:
+        encoded = torch.cat([encoded, check_input_white_line, check_input_lane], 2)
     decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
     output = decoded.clone()
 
     for i in range(check_output.shape[1] - 1):
         connected = connector(decoded)
         encoded, h_encoded, c_encoded = connected, h_decoded, c_decoded
-        encoded = torch.cat([encoded, check_input_white_line, check_input_lane], 2)
+        if vector_map_switch == 1:
+            encoded = torch.cat([encoded, check_input_white_line, check_input_lane], 2)
         decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
         output = torch.cat((output.clone(), decoded.clone()), 1)
 
@@ -405,6 +414,17 @@ if mode_switch == 3:
         plt.plot(check_input_xy.cpu().detach().numpy()[i, :, 0], check_input_xy.cpu().detach().numpy()[i, :, 1])
         plt.plot(check_output.cpu().detach().numpy()[i, :, 0], check_output.cpu().detach().numpy()[i, :, 1])
         plt.plot(output.cpu().detach().numpy()[i, :, 0], output.cpu().detach().numpy()[i, :, 1], "*")
+
+        for r in range(row):
+            plt.plot([index_box[r, 0, 0], index_box[r, -1, 1]],
+                     [index_box[r, 0, 2], index_box[r, -1, 2]], "g--")
+            plt.plot([index_box[r, 0, 0], index_box[r, -1, 1]],
+                     [index_box[r, 0, 3], index_box[r, -1, 3]], "g--")
+        for c in range(column):
+            plt.plot([index_box[0, c, 0], index_box[-1, c, 0]],
+                     [index_box[0, c, 2], index_box[-1, c, 3]], "g--")
+            plt.plot([index_box[0, c, 1], index_box[-1, c, 1]],
+                     [index_box[0, c, 2], index_box[-1, c, 3]], "g--")
 
         plt.subplot(1, 2, 2)
         loss = criterion(output[i], check_output[i])

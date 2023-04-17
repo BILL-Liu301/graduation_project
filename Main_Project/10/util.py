@@ -17,8 +17,8 @@ lane[:, 2] = -1.0 * lane[:, 2]
 # plt.show()
 
 data_size = 3
-seq_size = 50
-jump_size = int(seq_size / 20)
+seq_size = 100
+jump_size = int(seq_size /40)
 split_size = 5
 
 row = 20
@@ -222,12 +222,12 @@ input_white_line = testing_data_input_white_line
 input_lane = testing_data_input_lane
 # plt.figure()
 for i in range(testing_data_input_xy.shape[0]):
-    theda = data_reshape[i, (input_size - 1), 3] * math.pi / 180
+    theda = data_reshape[i + train_size, (input_size - 1), 3] * math.pi / 180
     white_line_temp = white_line.copy()
     lane_temp = lane.copy()
     for j in range(white_line_temp.shape[0]):
-        x_temp = white_line_temp[j, 1] - data_reshape[i, (input_size - 1), 1]
-        y_temp = white_line_temp[j, 2] - data_reshape[i, (input_size - 1), 2]
+        x_temp = white_line_temp[j, 1] - data_reshape[i + train_size, (input_size - 1), 1]
+        y_temp = white_line_temp[j, 2] - data_reshape[i + train_size, (input_size - 1), 2]
         white_line_temp[j, 1] = x_temp * math.cos(theda) - y_temp * math.sin(theda)
         white_line_temp[j, 2] = x_temp * math.sin(theda) + y_temp * math.cos(theda)
         flag, index_r, index_c = find_index(white_line_temp[j, 1], white_line_temp[j, 2])
@@ -235,39 +235,39 @@ for i in range(testing_data_input_xy.shape[0]):
             input_white_line[i, -1, index_r * row + index_c] = 1
 
     for j in range(lane_temp.shape[0]):
-        x_temp = lane_temp[j, 1] - data_reshape[i, (input_size - 1), 1]
-        y_temp = lane_temp[j, 2] - data_reshape[i, (input_size - 1), 2]
+        x_temp = lane_temp[j, 1] - data_reshape[i + train_size, (input_size - 1), 1]
+        y_temp = lane_temp[j, 2] - data_reshape[i + train_size, (input_size - 1), 2]
         lane_temp[j, 1] = x_temp * math.cos(theda) - y_temp * math.sin(theda)
         lane_temp[j, 2] = x_temp * math.sin(theda) + y_temp * math.cos(theda)
         flag, index_r, index_c = find_index(lane_temp[j, 1], lane_temp[j, 2])
         if flag:
             input_lane[i, -1, index_r * row + index_c] = 1
 
-    plt.subplot(2, 2, 1)
-    lim = 20
-    plt.xlim(-lim, lim)
-    plt.ylim(-lim, lim)
-    plt.plot(testing_data_input_xy[i, :, 1], testing_data_input_xy[i, :, 2], "*", color="r")
-    plt.plot(testing_data_output[i, :, 1], testing_data_output[i, :, 2], "*", color="b")
-    plt.plot(white_line_temp[:, 1], white_line_temp[:, 2], "*", color="b")
-    plt.plot(lane_temp[:, 1], lane_temp[:, 2], "*", color="b")
-    for r in range(row):
-        plt.plot([index_box[r, 0, 0], index_box[r, -1, 1]],
-                 [index_box[r, 0, 2], index_box[r, -1, 2]], "g--")
-        plt.plot([index_box[r, 0, 0], index_box[r, -1, 1]],
-                 [index_box[r, 0, 3], index_box[r, -1, 3]], "g--")
-    for c in range(column):
-        plt.plot([index_box[0, c, 0], index_box[-1, c, 0]],
-                 [index_box[0, c, 2], index_box[-1, c, 3]], "g--")
-        plt.plot([index_box[0, c, 1], index_box[-1, c, 1]],
-                 [index_box[0, c, 2], index_box[-1, c, 3]], "g--")
-
-    plt.subplot(2, 2, 2)
-    plt.imshow(np.flip(input_white_line[i, -1, :].reshape(row, column), axis=0))
-    plt.subplot(2, 2, 3)
-    plt.imshow(np.flip(input_lane[i, -1, :].reshape(row, column), axis=0))
-    plt.pause(0.01)
-    plt.clf()
+    # plt.subplot(2, 2, 1)
+    # lim = 20
+    # plt.xlim(-lim, lim)
+    # plt.ylim(-lim, lim)
+    # plt.plot(testing_data_input_xy[i, :, 1], testing_data_input_xy[i, :, 2], "*", color="r")
+    # plt.plot(testing_data_output[i, :, 1], testing_data_output[i, :, 2], "*", color="b")
+    # plt.plot(white_line_temp[:, 1], white_line_temp[:, 2], "*", color="b")
+    # plt.plot(lane_temp[:, 1], lane_temp[:, 2], "*", color="b")
+    # for r in range(row):
+    #     plt.plot([index_box[r, 0, 0], index_box[r, -1, 1]],
+    #              [index_box[r, 0, 2], index_box[r, -1, 2]], "g--")
+    #     plt.plot([index_box[r, 0, 0], index_box[r, -1, 1]],
+    #              [index_box[r, 0, 3], index_box[r, -1, 3]], "g--")
+    # for c in range(column):
+    #     plt.plot([index_box[0, c, 0], index_box[-1, c, 0]],
+    #              [index_box[0, c, 2], index_box[-1, c, 3]], "g--")
+    #     plt.plot([index_box[0, c, 1], index_box[-1, c, 1]],
+    #              [index_box[0, c, 2], index_box[-1, c, 3]], "g--")
+    #
+    # plt.subplot(2, 2, 2)
+    # plt.imshow(np.flip(input_white_line[i, -1, :].reshape(row, column), axis=0))
+    # plt.subplot(2, 2, 3)
+    # plt.imshow(np.flip(input_lane[i, -1, :].reshape(row, column), axis=0))
+    # plt.pause(0.01)
+    # plt.clf()
 input_white_line[np.nonzero(input_white_line)] = 1.0
 input_lane[np.nonzero(input_lane)] = 1.0
 
