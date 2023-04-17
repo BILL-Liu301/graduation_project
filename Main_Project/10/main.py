@@ -71,8 +71,8 @@ size_connector_fc_output = size_encoder_lstm_hidden
 
 learning_rate_init = 1e-4
 learning_rate = learning_rate_init
-max_epoch = 200
-batch_ratio = 0.5
+max_epoch = 50
+batch_ratio = 0.2
 
 
 # 定义编码器
@@ -209,21 +209,14 @@ if mode_switch == 0:
               torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory * 100, '%')
 
         plt.clf()
-        show = 150
-        cal = 100
 
-        plt.subplot(1, 2, 1)
+        plt.subplot(2, 1, 1)
         all_loss[epoch] = loss.item()
-        plt.plot(all_loss[max([epoch - show, 0]):(epoch + 1)])
-        plt.plot([show, show], [all_loss[max([epoch - show, 0]):(epoch + 1)].min(),
-                                all_loss[max([epoch - show, 0]):(epoch + 1)].max()], "r--")
-        plt.plot([show - cal, show - cal], [all_loss[max([epoch - show, 0]):(epoch + 1)].min(),
-                                            all_loss[max([epoch - show, 0]):(epoch + 1)].max()], "r--")
-        plt.text(show / 2, (all_loss[max([epoch - show, 0]):(epoch + 1)].max() +
-                            all_loss[max([epoch - show, 0]):(epoch + 1)].min()) / 2,
+        plt.plot(all_loss)
+        plt.text(epoch / 2, (all_loss[:].max() + all_loss[:].min()) / 2,
                  f"lr:{learning_rate:.10f}", fontsize=10)
 
-        plt.subplot(1, 2, 2)
+        plt.subplot(2, 1, 2)
         for i in range(20):
             plt.plot(np.append(training_data_output.cpu().detach().numpy()[i, 0, 0],
                                decoded.cpu().detach().numpy()[i, :, 0]),
@@ -280,7 +273,7 @@ if mode_switch == 1:
                  np.append(check_output.cpu().detach().numpy()[i, 0, 1],
                            decoded.cpu().detach().numpy()[i, :, 1]))
     plt.show()
-if mode_switch == 0:
+if mode_switch == 2:
     print("进行连接模型训练")
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")
@@ -293,57 +286,78 @@ if mode_switch == 0:
         scheduler_connector = scheduler.StepLR(optimizer_connector, step_size=100, gamma=0.7, last_epoch=-1)
 
         all_loss = np.zeros([1])
+        all_grad_abs = np.array([[0.0, 10]])
         for epoch in range(max_epoch):
             torch.cuda.empty_cache()
-            encoded, (h_encoded, c_encoded) = encoder(training_data_input_xy)
-            encoded = torch.cat([encoded, training_data_input_white_line, training_data_input_lane], 2)
-            decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
-            decoded_clone = decoded.clone()
-            for point in range(points):
-                connected = connector(decoded)
-                encoded, h_encoded, c_encoded = connected, h_decoded, c_decoded
-                encoded = torch.cat([encoded, training_data_input_white_line, training_data_input_lane], 2)
+            batch_size = training_data_input_xy.shape[0] * batch_ratio
+            for each_batch in range(int(1 / batch_ratio)):
+                train_input_xy = training_data_input_xy[int(each_batch * batch_size):int((each_batch + 1) * batch_size), :, :]
+                train_input_white_line = training_data_input_white_line[int(each_batch * batch_size):int((each_batch + 1) * batch_size), :, :]
+                train_input_lane = training_data_input_lane[int(each_batch * batch_size):int((each_batch + 1) * batch_size), :, :]
+                train_output = training_data_output[int(each_batch * batch_size):int((each_batch + 1) * batch_size), :, :]
+
+                encoded, (h_encoded, c_encoded) = encoder(train_input_xy)
+                encoded = torch.cat([encoded, train_input_white_line, train_input_lane], 2)
                 decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
-                decoded_clone = torch.cat((decoded_clone.clone(), decoded.clone()), 1)
-            loss = criterion(decoded_clone, training_data_output[:, 0:(points + 1), :]) * decoded_clone.shape[0]
-            print('当前显卡的显存使用率:',
-                  torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory * 100, '%')
+                decoded_clone = decoded.clone()
+                for point in range(points):
+                    connected = connector(decoded)
+                    encoded, h_encoded, c_encoded = connected, h_decoded, c_decoded
+                    encoded = torch.cat([encoded, train_input_white_line, train_input_lane], 2)
+                    decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
+                    decoded_clone = torch.cat((decoded_clone.clone(), decoded.clone()), 1)
+
+                loss = criterion(decoded_clone, train_output[:, 0:(points + 1), :]) * decoded_clone.shape[0]
+                all_loss[epoch] = loss.item()
+
+                optimizer_connector.zero_grad()
+                optimizer_decoder.zero_grad()
+                loss.backward()
+                optimizer_connector.step()
+                optimizer_decoder.step()
+
+            # print('当前显卡的显存使用率:',
+            #       torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory * 100, '%')
+
+            for name, param in decoder.named_parameters():
+                if param.grad is None:
+                    continue
+                if abs(param.grad.cpu().numpy().max()) >= all_grad_abs[-1, 0]:
+                    all_grad_abs[-1, 0] = param.grad.cpu().numpy().max()
+
+                if abs(param.grad.cpu().numpy().min()) >= all_grad_abs[-1, 0]:
+                    all_grad_abs[-1, 0] = param.grad.cpu().numpy().min()
+
+                temp = param.grad.cpu().numpy()
+                temp = temp[np.nonzero(temp)]
+                temp = temp[np.abs(temp).argmin()]
+                if abs(all_grad_abs[-1, 1]) >= abs(temp):
+                    all_grad_abs[-1, 1] = temp
 
             plt.clf()
             show = 150
             cal = 100
 
-            plt.subplot(1, 2, 1)
-            all_loss[epoch] = loss.item()
-            plt.plot(all_loss[max([epoch - show, 0]):(epoch + 1)])
-            plt.plot([show, show], [all_loss[max([epoch - show, 0]):(epoch + 1)].min(),
-                                    all_loss[max([epoch - show, 0]):(epoch + 1)].max()], "r--")
-            plt.plot([show - cal, show - cal], [all_loss[max([epoch - show, 0]):(epoch + 1)].min(),
-                                                all_loss[max([epoch - show, 0]):(epoch + 1)].max()], "r--")
-            plt.text(show / 2, (all_loss[max([epoch - show, 0]):(epoch + 1)].max() +
-                                all_loss[max([epoch - show, 0]):(epoch + 1)].min()) / 2,
-                     f"lr:{learning_rate:.10f}", fontsize=10)
+            plt.subplot(3, 1, 1)
+            plt.plot(all_loss)
+            plt.text(epoch / 2, (all_loss[:].max() + all_loss[:].min()) / 2,
+                     f"point:{points}, lr:{learning_rate:.10f}", fontsize=10)
 
-            plt.subplot(1, 2, 2)
-            for i in range(10):
-                plt.plot(training_data_output.cpu().detach().numpy()[i, 0:(points + 1), 0],
-                         training_data_output.cpu().detach().numpy()[i, 0:(points + 1), 1])
-                plt.plot(decoded_clone.cpu().detach().numpy()[i, :, 0],
-                         decoded_clone.cpu().detach().numpy()[i, :, 1], "*")
+            plt.subplot(3, 1, 2)
+            plt.plot(all_grad_abs[:, 0])
+            plt.plot([0.0, epoch], [0.0, 0.0], "r--")
+
+            plt.subplot(3, 1, 3)
+            plt.plot(all_grad_abs[:, 1])
+            plt.plot([0.0, epoch], [0.0, 0.0], "r--")
+
+            plt.pause(0.01)
 
             all_loss = np.append(all_loss, [0.0], axis=0)
-
-            plt.pause(0.001)
-
-            optimizer_connector.zero_grad()
-            optimizer_decoder.zero_grad()
-            loss.backward()
+            all_grad_abs = np.append(all_grad_abs, np.array([[0.0, 10]]), axis=0)
 
             if (epoch + 1) % 50 == 0:
-                print(f"points:{points},epoch:{epoch + 1},loss:{loss.item()}")
-
-            optimizer_connector.step()
-            optimizer_decoder.step()
+                print(f"points:{points},epoch:{epoch + 1},loss:{all_loss[-1]}")
 
             # scheduler_decoder.step()
             # scheduler_connector.step()
@@ -365,10 +379,10 @@ if mode_switch == 3:
     decoder = torch.load("end_decoder.pth")
     connector = torch.load("end_connector.pth")
 
-    check_input_xy = training_data_input_xy
-    check_input_white_line = training_data_input_white_line
-    check_input_lane = training_data_input_lane
-    check_output = training_data_output
+    check_input_xy = testing_data_input_xy
+    check_input_white_line = testing_data_input_white_line
+    check_input_lane = testing_data_input_lane
+    check_output = testing_data_output
 
     encoded, (h_encoded, c_encoded) = encoder(check_input_xy)
     encoded = torch.cat([encoded, check_input_white_line, check_input_lane], 2)
@@ -385,7 +399,7 @@ if mode_switch == 3:
     all_loss = np.zeros([1])
     for i in range(check_output.shape[0]):
         plt.subplot(1, 2, 1)
-        lim = 5
+        lim = 10
         plt.xlim(-lim, lim)
         plt.ylim(-lim, lim)
         plt.plot(check_input_xy.cpu().detach().numpy()[i, :, 0], check_input_xy.cpu().detach().numpy()[i, :, 1])
