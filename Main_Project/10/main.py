@@ -280,12 +280,12 @@ if mode_switch == 1:
                  np.append(check_output.cpu().detach().numpy()[i, 0, 1],
                            decoded.cpu().detach().numpy()[i, :, 1]))
     plt.show()
-if mode_switch == 0:
+if mode_switch == 2:
     print("进行连接模型训练")
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")
 
-    for points in range(1, training_data_output.shape[1], 1):
+    for points in range(40, training_data_output.shape[1], 1):
         learning_rate = learning_rate_init * points * 0.1
         optimizer_decoder = optim.Adam(decoder.parameters(), lr=learning_rate)
         optimizer_connector = optim.Adam(connector.parameters(), lr=learning_rate)
@@ -382,7 +382,7 @@ if mode_switch == 0:
 
         torch.save(decoder, "end_decoder.pth")
         torch.save(connector, "end_connector.pth")
-if mode_switch == 0:
+if mode_switch == 3:
     print("循环预测模型测试")
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")

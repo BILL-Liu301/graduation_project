@@ -9,7 +9,7 @@ lane = np.load("lane.npy")
 white_line[:, 2] = -1.0 * white_line[:, 2]
 lane[:, 2] = -1.0 * lane[:, 2]
 
-data_size = 3
+data_size = 5
 seq_size = 100
 jump_size = int(seq_size / 20)
 split_size = 10
@@ -19,22 +19,23 @@ column = 20  # 必须为奇数
 size_row = 1.5  # 行高
 size_colum = 1.5  # 列宽
 
-# # time x y V car_id
+# # time x y Vx Vy heading
 # path = "./npys/"
 # files = sorted(os.listdir(path), reverse=False)
 # # time x y heading
-# data_reshape = np.array([[0, 0.0, 0.0, 0.0]])
+# data_reshape = np.array([[0, 0.0, 0.0, 0.0, 0.0, 0.0]])
 # for file in files:
 #     print(path + str(file))
 #     data = np.load(path + str(file))
 #     for i in range(0, data.shape[0] - jump_size - seq_size*split_size, jump_size):
 #         for j in range(0, seq_size*split_size, split_size):
-#             data_reshape[-1, :] = np.array(data[i+j, [0, 1, 2, 5]])
-#             data_reshape = np.r_[data_reshape, np.array([[0, 0.0, 0.0, 0.0]])]
+#             data_reshape[-1, :] = np.array(data[i+j, :])
+#             data_reshape = np.r_[data_reshape, np.array([[0, 0.0, 0.0, 0.0, 0.0, 0.0]])]
 #     print(str(file), data_reshape.shape)
 # np.save("data_reshape.npy", data_reshape)
 
 data_reshape = np.load("data_reshape.npy")
+print(data_reshape.shape)
 data_reshape = np.delete(data_reshape, [-1], 0)
 data_reshape = np.array(data_reshape.reshape(-1, seq_size, data_size + 1))
 
@@ -74,7 +75,7 @@ for i in range(training_data_input_xy.shape[0]):
     # theda = math.atan2(training_data_input_xy[i, -5, 2],
     #                    training_data_input_xy[i, -5, 1])  # 与x轴的夹角
     # theda = 3 * math.pi / 2 - theda
-    theda = training_data_input_xy[i, -1, 3] * math.pi / 180
+    theda = training_data_input_xy[i, -1, -1] * math.pi / 180
 
     for j in range(training_data_input_xy.shape[1]):
         x_temp = training_data_input_xy[i, j, 1]
@@ -92,7 +93,7 @@ for i in range(testing_data_input_xy.shape[0]):
     # theda = math.atan2(testing_data_input_xy[i, -5, 2],
     #                    testing_data_input_xy[i, -5, 1])  # 与x轴的夹角
     # theda = 3 * math.pi / 2 - theda
-    theda = testing_data_input_xy[i, -1, 3] * math.pi / 180
+    theda = testing_data_input_xy[i, -1, -1] * math.pi / 180
 
     for j in range(testing_data_input_xy.shape[1]):
         x_temp = testing_data_input_xy[i, j, 1]
@@ -162,7 +163,7 @@ input_white_line = training_data_input_white_line
 input_lane = training_data_input_lane
 # plt.figure()
 for i in range(training_data_input_xy.shape[0]):
-    theda = data_reshape[i, (input_size - 1), 3] * math.pi / 180
+    theda = data_reshape[i, (input_size - 1), -1] * math.pi / 180
     white_line_temp = white_line.copy()
     lane_temp = lane.copy()
     for j in range(white_line_temp.shape[0]):
@@ -215,7 +216,7 @@ input_white_line = testing_data_input_white_line
 input_lane = testing_data_input_lane
 # plt.figure()
 for i in range(testing_data_input_xy.shape[0]):
-    theda = data_reshape[i + train_size, (input_size - 1), 3] * math.pi / 180
+    theda = data_reshape[i + train_size, (input_size - 1), -1] * math.pi / 180
     white_line_temp = white_line.copy()
     lane_temp = lane.copy()
     for j in range(white_line_temp.shape[0]):
@@ -268,9 +269,9 @@ input_lane[np.nonzero(input_lane)] = 1.0
 training_data_input_xy = np.array(training_data_input_xy[:, :, 1:data_size])
 training_data_input_white_line = training_data_input_white_line
 training_data_input_lane = training_data_input_lane
-training_data_output = np.array(training_data_output[:, :, 1:data_size])
+training_data_output = np.array(training_data_output[:, :, 1:3])
 
 testing_data_input_xy = np.array(testing_data_input_xy[:, :, 1:data_size])
 testing_data_input_white_line = testing_data_input_white_line
 testing_data_input_lane = testing_data_input_lane
-testing_data_output = np.array(testing_data_output[:, :, 1:data_size])
+testing_data_output = np.array(testing_data_output[:, :, 1:3])
