@@ -5,16 +5,9 @@ import matplotlib.pyplot as plt
 
 white_line = np.load("white_line.npy")
 lane = np.load("lane.npy")
-source = np.load("npys/source.npy")
 
 white_line[:, 2] = -1.0 * white_line[:, 2]
 lane[:, 2] = -1.0 * lane[:, 2]
-
-# plt.figure()
-# plt.plot(white_line[:, 1], white_line[:, 2], "*")
-# plt.plot(lane[:, 1], lane[:, 2], "*")
-# plt.plot(source[:, 1], source[:, 2], "*")
-# plt.show()
 
 data_size = 3
 seq_size = 100
@@ -26,20 +19,20 @@ column = 20  # 必须为奇数
 size_row = 1.5  # 行高
 size_colum = 1.5  # 列宽
 
-# # time x y V car_id
-# path = "./npys/"
-# files = sorted(os.listdir(path), reverse=False)
-# # time x y heading
-# data_reshape = np.array([[0, 0.0, 0.0, 0.0]])
-# for file in files:
-#     print(path + str(file))
-#     data = np.load(path + str(file))
-#     for i in range(0, data.shape[0] - jump_size - seq_size*split_size, jump_size):
-#         for j in range(0, seq_size*split_size, split_size):
-#             data_reshape[-1, :] = np.array(data[i+j, [0, 1, 2, 5]])
-#             data_reshape = np.r_[data_reshape, np.array([[0, 0.0, 0.0, 0.0]])]
-#     print(str(file), data_reshape.shape)
-# np.save("data_reshape.npy", data_reshape)
+# time x y V car_id
+path = "./npys/"
+files = sorted(os.listdir(path), reverse=False)
+# time x y heading
+data_reshape = np.array([[0, 0.0, 0.0, 0.0]])
+for file in files:
+    print(path + str(file))
+    data = np.load(path + str(file))
+    for i in range(0, data.shape[0] - jump_size - seq_size*split_size, jump_size):
+        for j in range(0, seq_size*split_size, split_size):
+            data_reshape[-1, :] = np.array(data[i+j, [0, 1, 2, 5]])
+            data_reshape = np.r_[data_reshape, np.array([[0, 0.0, 0.0, 0.0]])]
+    print(str(file), data_reshape.shape)
+np.save("data_reshape.npy", data_reshape)
 
 data_reshape = np.load("data_reshape.npy")
 data_reshape = np.delete(data_reshape, [-1], 0)
