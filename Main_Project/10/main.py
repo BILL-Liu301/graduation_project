@@ -280,7 +280,7 @@ if mode_switch == 1:
                  np.append(check_output.cpu().detach().numpy()[i, 0, 1],
                            decoded.cpu().detach().numpy()[i, :, 1]))
     plt.show()
-if mode_switch == 2:
+if mode_switch == 0:
     print("进行连接模型训练")
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")
@@ -382,7 +382,7 @@ if mode_switch == 2:
 
         torch.save(decoder, "end_decoder.pth")
         torch.save(connector, "end_connector.pth")
-if mode_switch == 3:
+if mode_switch == 0:
     print("循环预测模型测试")
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")
