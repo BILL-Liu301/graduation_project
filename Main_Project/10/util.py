@@ -18,7 +18,7 @@ lane[:, 2] = -1.0 * lane[:, 2]
 
 data_size = 3
 seq_size = 100
-jump_size = int(seq_size /40)
+jump_size = int(seq_size / 40)
 split_size = 5
 
 row = 20
