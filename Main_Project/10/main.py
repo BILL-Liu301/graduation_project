@@ -53,6 +53,8 @@ print(f'testing_data_output: {testing_data_output.shape}')
 # 模式选取
 mode_switch = int(input("请进行模式选择："))
 vector_map_switch = int(input("请进行是否启用vector_map："))
+# mode_switch = 0
+# vector_map_switch = 0
 
 # 定义基本参数
 size_basic = 256
@@ -278,7 +280,7 @@ if mode_switch == 1:
                  np.append(check_output.cpu().detach().numpy()[i, 0, 1],
                            decoded.cpu().detach().numpy()[i, :, 1]))
     plt.show()
-if mode_switch == 2:
+if mode_switch == 0:
     print("进行连接模型训练")
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")
@@ -364,7 +366,7 @@ if mode_switch == 2:
             all_grad_abs = np.append(all_grad_abs, np.array([[0.0, 10]]), axis=0)
 
             if (epoch + 1) % 50 == 0:
-                print(f"points:{points},epoch:{epoch + 1},loss:{all_loss[-1]}")
+                print(f"points:{points},epoch:{epoch + 1},loss:{all_loss[-2]}")
 
             # scheduler_decoder.step()
             # scheduler_connector.step()
@@ -408,7 +410,7 @@ if mode_switch == 3:
     all_loss = np.zeros([1])
     for i in range(check_output.shape[0]):
         plt.subplot(1, 2, 1)
-        lim = 10
+        lim = 20
         plt.xlim(-lim, lim)
         plt.ylim(-lim, lim)
         plt.plot(check_input_xy.cpu().detach().numpy()[i, :, 0], check_input_xy.cpu().detach().numpy()[i, :, 1])
