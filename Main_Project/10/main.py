@@ -382,7 +382,7 @@ if mode_switch == 0:
 
         torch.save(decoder, "end_decoder.pth")
         torch.save(connector, "end_connector.pth")
-if mode_switch == 3:
+if mode_switch == 0:
     print("循环预测模型测试")
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")
