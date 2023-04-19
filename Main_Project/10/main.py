@@ -77,7 +77,7 @@ size_connector_fc_output = size_encoder_lstm_hidden
 
 learning_rate_init = 1e-4
 learning_rate = learning_rate_init
-max_epoch = 50
+max_epoch = 100
 batch_ratio = 0.2
 
 
@@ -211,8 +211,8 @@ if mode_switch == 0:
             encoded = torch.cat([encoded, training_data_input_white_line, training_data_input_lane], 2)
         decoded, _ = decoder(encoded, h_encoded, c_encoded)
         loss = criterion(decoded, training_data_output[:, 0, :].unsqueeze(1))
-        print('当前显卡的显存使用率:',
-              torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory * 100, '%')
+        # print('当前显卡的显存使用率:',
+        #       torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory * 100, '%')
 
         plt.clf()
 
@@ -285,16 +285,16 @@ if mode_switch == 0:
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")
 
-    for points in range(40, training_data_output.shape[1], 1):
+    for points in range(1, training_data_output.shape[1], 1):
         learning_rate = learning_rate_init * points * 0.1
         optimizer_decoder = optim.Adam(decoder.parameters(), lr=learning_rate)
         optimizer_connector = optim.Adam(connector.parameters(), lr=learning_rate)
-        scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=100, gamma=0.7, last_epoch=-1)
-        scheduler_connector = scheduler.StepLR(optimizer_connector, step_size=100, gamma=0.7, last_epoch=-1)
+        scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=10, gamma=0.7, last_epoch=-1)
+        scheduler_connector = scheduler.StepLR(optimizer_connector, step_size=10, gamma=0.7, last_epoch=-1)
 
         all_loss = np.zeros([1])
         all_grad_abs = np.array([[0.0, 10]])
-        for epoch in range(max_epoch):
+        for epoch in range(30):
             torch.cuda.empty_cache()
             batch_size = training_data_input_xy.shape[0] * batch_ratio
             for each_batch in range(int(1 / batch_ratio)):
