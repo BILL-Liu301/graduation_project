@@ -6,7 +6,7 @@ import torch.optim as optim
 from util import training_data_input_xy, training_data_input_white_line, training_data_input_lane
 from util import testing_data_input_xy, testing_data_input_white_line, testing_data_input_lane
 from util import training_data_output, testing_data_output, index_box
-from util import data_size, input_size, row, column
+from util import data_size, input_size, row, column, size_row
 import matplotlib.pyplot as plt
 import torch.optim.lr_scheduler as scheduler
 
@@ -51,10 +51,9 @@ print(f'testing_data_input_lane: {testing_data_input_lane.shape}')
 print(f'testing_data_output: {testing_data_output.shape}')
 
 # 模式选取
-mode_switch = int(input("请进行模式选择："))
-vector_map_switch = int(input("请进行是否启用vector_map："))
-# mode_switch = 0
-# vector_map_switch = 0
+mode_switch = np.array([0, 0, 0, 1])
+vector_map_switch = 1
+check_source_switch = 0
 
 # 定义基本参数
 size_basic = 256
@@ -65,7 +64,7 @@ size_encoder_lstm_input = size_encoder_fc_output
 size_encoder_lstm_hidden = size_basic
 size_encoder_activate_num_parameters = input_size
 
-size_decoder_lstm_input = size_encoder_lstm_hidden + 2 * row * column * vector_map_switch
+size_decoder_lstm_input = size_encoder_lstm_hidden + 1 * row * column * vector_map_switch
 size_decoder_lstm_hidden = size_basic
 size_decoder_fc_input = size_decoder_lstm_hidden
 size_decoder_fc_middle = size_basic
@@ -77,7 +76,7 @@ size_connector_fc_output = size_encoder_lstm_hidden
 
 learning_rate_init = 1e-4
 learning_rate = learning_rate_init
-max_epoch = 100
+max_epoch = 200
 batch_ratio = 0.2
 
 
@@ -106,6 +105,9 @@ class Encoder(nn.Module):
                                           init=self.encoder_activate_init)
         self.encoder_activate3 = nn.PReLU(num_parameters=encoder_activate_num_parameters_size,
                                           init=self.encoder_activate_init)
+        self.encoder_activate4 = nn.PReLU(num_parameters=encoder_activate_num_parameters_size,
+                                          init=self.encoder_activate_init)
+        self.encoder_batch_normalization = nn.BatchNorm1d(encoder_activate_num_parameters_size, affine=False)
 
     def forward(self, x):
         h0 = torch.ones(self.encoder_lstm_num_layers, x.size(0), self.encoder_lstm_hidden_size).to(device)
@@ -113,10 +115,14 @@ class Encoder(nn.Module):
         h1 = torch.ones(self.encoder_lstm_num_layers, x.size(0), self.encoder_lstm_hidden_size).to(device)
         c1 = torch.ones(self.encoder_lstm_num_layers, x.size(0), self.encoder_lstm_hidden_size).to(device)
 
-        out = self.encoder_fc1(x)
-        out = self.encoder_fc2(out)
-        out = self.encoder_fc3(out)
-        out = self.encoder_fc4(out)
+        out = self.encoder_fc1(self.encoder_activate1(x))
+        out = self.encoder_batch_normalization(out)
+        out = self.encoder_fc2(self.encoder_activate2(out))
+        out = self.encoder_batch_normalization(out)
+        out = self.encoder_fc3(self.encoder_activate3(out))
+        out = self.encoder_batch_normalization(out)
+        out = self.encoder_fc4(self.encoder_activate4(out))
+        out = self.encoder_batch_normalization(out)
         out_front, (h_front, c_front) = self.encoder_lstm_front(out, (h0, c0))
         out_back, (h_back, c_back) = self.encoder_lstm_back(out.flip(dims=[1]), (h1, c1))
         h = torch.add(h_front, h_back)
@@ -148,13 +154,19 @@ class Decoder(nn.Module):
                                           init=self.decoder_activate_init)
         self.decoder_activate3 = nn.PReLU(num_parameters=1,
                                           init=self.decoder_activate_init)
+        self.decoder_activate4 = nn.PReLU(num_parameters=1,
+                                          init=self.decoder_activate_init)
+        self.decoder_batch_normalization = nn.BatchNorm1d(1, affine=False)
 
     def forward(self, x, h1, c1):
         out, (h2, c2) = self.decoder_lstm(x, (h1, c1))
-        out = self.decoder_fc1(out)
-        out = self.decoder_fc2(out)
-        out = self.decoder_fc3(out)
-        out = self.decoder_fc4(out)
+        out = self.decoder_fc1(self.decoder_activate1(out))
+        out = self.decoder_batch_normalization(out)
+        out = self.decoder_fc2(self.decoder_activate2(out))
+        out = self.decoder_batch_normalization(out)
+        out = self.decoder_fc3(self.decoder_activate3(out))
+        out = self.decoder_batch_normalization(out)
+        out = self.decoder_fc4(self.decoder_activate4(out))
         return out, (h2, c2)
 
 
@@ -186,8 +198,6 @@ decoder = Decoder(size_decoder_lstm_input, size_decoder_lstm_hidden,
                   size_decoder_fc_input, size_decoder_fc_middle, size_decoder_fc_output).to(device)
 connector = Connector(size_connector_fc_input, size_connector_fc_middle, size_connector_fc_output).to(device)
 
-print(decoder)
-
 # 优化器和损失函数
 optimizer_encoder = optim.Adam(encoder.parameters(), lr=learning_rate)
 optimizer_decoder = optim.Adam(decoder.parameters(), lr=learning_rate)
@@ -197,18 +207,18 @@ criterion = nn.MSELoss()
 # 主要部分
 t_start = time.time()
 fig = plt.figure()
-if mode_switch == 0:
+if mode_switch[0] == 1:
     print("进行单点模型训练")
 
-    scheduler_encoder = scheduler.StepLR(optimizer_encoder, step_size=100, gamma=0.7, last_epoch=-1)
-    scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=100, gamma=0.7, last_epoch=-1)
+    scheduler_encoder = scheduler.StepLR(optimizer_encoder, step_size=int(max_epoch / 10), gamma=0.7, last_epoch=-1)
+    scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=int(max_epoch / 10), gamma=0.7, last_epoch=-1)
 
     all_loss = np.zeros([1])
     for epoch in range(max_epoch):
         torch.cuda.empty_cache()
         encoded, (h_encoded, c_encoded) = encoder(training_data_input_xy)
         if vector_map_switch == 1:
-            encoded = torch.cat([encoded, training_data_input_white_line, training_data_input_lane], 2)
+            encoded = torch.cat([encoded, training_data_input_lane], 2)
         decoded, _ = decoder(encoded, h_encoded, c_encoded)
         loss = criterion(decoded, training_data_output[:, 0, :].unsqueeze(1))
         # print('当前显卡的显存使用率:',
@@ -237,15 +247,15 @@ if mode_switch == 0:
         optimizer_decoder.zero_grad()
         loss.backward()
 
-        if (epoch + 1) % 50 == 0:
+        if (epoch + 1) % int(max_epoch / 10) == 0:
             print(f"epoch:{epoch + 1},loss:{loss.item()}")
 
         optimizer_encoder.step()
         optimizer_decoder.step()
 
-        # scheduler_encoder.step()
-        # scheduler_decoder.step()
-        # learning_rate = scheduler_encoder.get_last_lr()[0]
+        scheduler_encoder.step()
+        scheduler_decoder.step()
+        learning_rate = scheduler_encoder.get_last_lr()[0]
 
         rand_para = torch.randperm(training_data_input_xy.shape[0])
         training_data_input_xy = training_data_input_xy[rand_para]
@@ -256,7 +266,10 @@ if mode_switch == 0:
     torch.save(encoder, "end_encoder.pth")
     torch.save(decoder, "end_decoder.pth")
     fig.savefig("figs/" + "single.png")
-if mode_switch == 1:
+    plt.clf()
+print('当前显卡的显存使用率:', torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory * 100,
+      '%')
+if mode_switch[1] == 1:
     print("单点模型测试")
 
     encoder = torch.load("end_encoder.pth")
@@ -269,7 +282,7 @@ if mode_switch == 1:
 
     encoded, (h_encoded, c_encoded) = encoder(check_input_xy)
     if vector_map_switch == 1:
-        encoded = torch.cat([encoded, check_input_white_line, check_input_lane], 2)
+        encoded = torch.cat([encoded, check_input_lane], 2)
     decoded, _ = decoder(encoded, h_encoded, c_encoded)
     loss = criterion(decoded, check_output[:, 0, :].unsqueeze(1)) * check_output.shape[0]
     print(loss.item())
@@ -280,22 +293,22 @@ if mode_switch == 1:
                  np.append(check_output.cpu().detach().numpy()[i, 0, 1],
                            decoded.cpu().detach().numpy()[i, :, 1]))
     plt.show()
-if mode_switch == 0:
+if mode_switch[2] == 1:
     print("进行连接模型训练")
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")
+    max_epoch = int(max_epoch / 2)
 
     for points in range(1, training_data_output.shape[1], 1):
         learning_rate = learning_rate_init * points * 0.1
-        optimizer_decoder = optim.Adam(decoder.parameters(), lr=learning_rate)
+        optimizer_decoder = optim.Adam(decoder.parameters(), lr=(learning_rate / 10))
         optimizer_connector = optim.Adam(connector.parameters(), lr=learning_rate)
-        scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=10, gamma=0.7, last_epoch=-1)
-        scheduler_connector = scheduler.StepLR(optimizer_connector, step_size=10, gamma=0.7, last_epoch=-1)
+        scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=int(max_epoch / 10), gamma=0.7, last_epoch=-1)
+        scheduler_connector = scheduler.StepLR(optimizer_connector, step_size=int(max_epoch / 10), gamma=0.7, last_epoch=-1)
 
         all_loss = np.zeros([1])
         all_grad_abs = np.array([[0.0, 10]])
-        for epoch in range(30):
-            torch.cuda.empty_cache()
+        for epoch in range(max_epoch):
             batch_size = training_data_input_xy.shape[0] * batch_ratio
             for each_batch in range(int(1 / batch_ratio)):
                 train_input_xy = training_data_input_xy[int(each_batch * batch_size):int((each_batch + 1) * batch_size), :, :]
@@ -305,14 +318,14 @@ if mode_switch == 0:
 
                 encoded, (h_encoded, c_encoded) = encoder(train_input_xy)
                 if vector_map_switch == 1:
-                    encoded = torch.cat([encoded, train_input_white_line, train_input_lane], 2)
+                    encoded = torch.cat([encoded, train_input_lane], 2)
                 decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
                 decoded_clone = decoded.clone()
                 for point in range(points):
                     connected = connector(decoded)
                     encoded, h_encoded, c_encoded = connected, h_decoded, c_decoded
                     if vector_map_switch == 1:
-                        encoded = torch.cat([encoded, train_input_white_line, train_input_lane], 2)
+                        encoded = torch.cat([encoded, train_input_lane], 2)
                     decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
                     decoded_clone = torch.cat((decoded_clone.clone(), decoded.clone()), 1)
 
@@ -343,9 +356,22 @@ if mode_switch == 0:
                 if abs(all_grad_abs[-1, 1]) >= abs(temp):
                     all_grad_abs[-1, 1] = temp
 
+            for name, param in connector.named_parameters():
+                if param.grad is None:
+                    continue
+                if abs(param.grad.cpu().numpy().max()) >= all_grad_abs[-1, 0]:
+                    all_grad_abs[-1, 0] = param.grad.cpu().numpy().max()
+
+                if abs(param.grad.cpu().numpy().min()) >= all_grad_abs[-1, 0]:
+                    all_grad_abs[-1, 0] = param.grad.cpu().numpy().min()
+
+                temp = param.grad.cpu().numpy()
+                temp = temp[np.nonzero(temp)]
+                temp = temp[np.abs(temp).argmin()]
+                if abs(all_grad_abs[-1, 1]) >= abs(temp):
+                    all_grad_abs[-1, 1] = temp
+
             plt.clf()
-            show = 150
-            cal = 100
 
             plt.subplot(3, 1, 1)
             plt.plot(all_loss)
@@ -365,12 +391,12 @@ if mode_switch == 0:
             all_loss = np.append(all_loss, [0.0], axis=0)
             all_grad_abs = np.append(all_grad_abs, np.array([[0.0, 10]]), axis=0)
 
-            if (epoch + 1) % 50 == 0:
+            if (epoch + 1) % int(max_epoch / 10) == 0:
                 print(f"points:{points},epoch:{epoch + 1},loss:{all_loss[-2]}")
 
-            # scheduler_decoder.step()
-            # scheduler_connector.step()
-            # learning_rate = scheduler_connector.get_last_lr()[0]
+            scheduler_decoder.step()
+            scheduler_connector.step()
+            learning_rate = scheduler_connector.get_last_lr()[0]
 
             rand_para = torch.randperm(training_data_input_xy.shape[0])
             training_data_input_xy = training_data_input_xy[rand_para]
@@ -382,20 +408,29 @@ if mode_switch == 0:
 
         torch.save(decoder, "end_decoder.pth")
         torch.save(connector, "end_connector.pth")
-if mode_switch == 0:
+    plt.clf()
+print('当前显卡的显存使用率:', torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory * 100,
+      '%')
+if mode_switch[3] == 1:
     print("循环预测模型测试")
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")
     connector = torch.load("end_connector.pth")
 
-    check_input_xy = testing_data_input_xy
-    check_input_white_line = testing_data_input_white_line
-    check_input_lane = testing_data_input_lane
-    check_output = testing_data_output
+    if check_source_switch == 0:
+        check_input_xy = testing_data_input_xy
+        check_input_white_line = testing_data_input_white_line
+        check_input_lane = testing_data_input_lane
+        check_output = testing_data_output
+    else:
+        check_input_xy = training_data_input_xy
+        check_input_white_line = testing_data_input_white_line
+        check_input_lane = training_data_input_lane
+        check_output = training_data_output
 
     encoded, (h_encoded, c_encoded) = encoder(check_input_xy)
     if vector_map_switch == 1:
-        encoded = torch.cat([encoded, check_input_white_line, check_input_lane], 2)
+        encoded = torch.cat([encoded, check_input_lane], 2)
     decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
     output = decoded.clone()
 
@@ -403,16 +438,16 @@ if mode_switch == 0:
         connected = connector(decoded)
         encoded, h_encoded, c_encoded = connected, h_decoded, c_decoded
         if vector_map_switch == 1:
-            encoded = torch.cat([encoded, check_input_white_line, check_input_lane], 2)
+            encoded = torch.cat([encoded, check_input_lane], 2)
         decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
         output = torch.cat((output.clone(), decoded.clone()), 1)
 
     all_loss = np.zeros([1])
     for i in range(check_output.shape[0]):
         plt.subplot(1, 2, 1)
-        lim = 20
-        plt.xlim(-lim, lim)
-        plt.ylim(-lim, lim)
+        lim = row * size_row + 1
+        plt.xlim(-lim/2, lim/2)
+        plt.ylim(-0, lim)
         plt.plot(check_input_xy.cpu().detach().numpy()[i, :, 0], check_input_xy.cpu().detach().numpy()[i, :, 1])
         plt.plot(check_output.cpu().detach().numpy()[i, :, 0], check_output.cpu().detach().numpy()[i, :, 1])
         plt.plot(output.cpu().detach().numpy()[i, :, 0], output.cpu().detach().numpy()[i, :, 1], "*")
@@ -427,6 +462,13 @@ if mode_switch == 0:
                      [index_box[0, c, 2], index_box[-1, c, 3]], "g--")
             plt.plot([index_box[0, c, 1], index_box[-1, c, 1]],
                      [index_box[0, c, 2], index_box[-1, c, 3]], "g--")
+
+        for r in range(row):
+            for c in range(column):
+                if check_input_lane[i, -1, r * row + c] == 1.0:
+                    plt.plot((index_box[r, c, 0] + index_box[r, c, 1]) / 2,
+                             (index_box[r, c, 2] + index_box[r, c, 3]) / 2,
+                             's', color="b")
 
         plt.subplot(1, 2, 2)
         loss = criterion(output[i], check_output[i])
