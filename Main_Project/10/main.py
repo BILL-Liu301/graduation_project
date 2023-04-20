@@ -51,8 +51,8 @@ print(f'testing_data_input_lane: {testing_data_input_lane.shape}')
 print(f'testing_data_output: {testing_data_output.shape}')
 
 # 模式选取
-mode_switch = np.array([0, 0, 0, 1])
-vector_map_switch = 1
+mode_switch = np.array([1, 0, 1, 1])
+vector_map_switch = 0
 check_source_switch = 0
 
 # 定义基本参数
