@@ -107,7 +107,8 @@ class Encoder(nn.Module):
                                           init=self.encoder_activate_init)
         self.encoder_activate4 = nn.PReLU(num_parameters=encoder_activate_num_parameters_size,
                                           init=self.encoder_activate_init)
-        self.encoder_batch_normalization = nn.BatchNorm1d(encoder_activate_num_parameters_size, affine=False)
+        # self.encoder_normalization = nn.BatchNorm1d(encoder_activate_num_parameters_size, affine=False)
+        self.encoder_normalization = nn.LayerNorm([encoder_activate_num_parameters_size, encoder_fc_middle_size])
 
     def forward(self, x):
         h0 = torch.ones(self.encoder_lstm_num_layers, x.size(0), self.encoder_lstm_hidden_size).to(device)
@@ -116,13 +117,13 @@ class Encoder(nn.Module):
         c1 = torch.ones(self.encoder_lstm_num_layers, x.size(0), self.encoder_lstm_hidden_size).to(device)
 
         out = self.encoder_fc1(self.encoder_activate1(x))
-        out = self.encoder_batch_normalization(out)
+        out = self.encoder_normalization(out)
         out = self.encoder_fc2(self.encoder_activate2(out))
-        out = self.encoder_batch_normalization(out)
+        out = self.encoder_normalization(out)
         out = self.encoder_fc3(self.encoder_activate3(out))
-        out = self.encoder_batch_normalization(out)
+        out = self.encoder_normalization(out)
         out = self.encoder_fc4(self.encoder_activate4(out))
-        out = self.encoder_batch_normalization(out)
+        out = self.encoder_normalization(out)
         out_front, (h_front, c_front) = self.encoder_lstm_front(out, (h0, c0))
         out_back, (h_back, c_back) = self.encoder_lstm_back(out.flip(dims=[1]), (h1, c1))
         h = torch.add(h_front, h_back)
@@ -156,16 +157,17 @@ class Decoder(nn.Module):
                                           init=self.decoder_activate_init)
         self.decoder_activate4 = nn.PReLU(num_parameters=1,
                                           init=self.decoder_activate_init)
-        self.decoder_batch_normalization = nn.BatchNorm1d(1, affine=False)
+        # self.decoder_normalization = nn.BatchNorm1d(1, affine=False)
+        self.decoder_normalization = nn.LayerNorm([1, decoder_fc_middle_size])
 
     def forward(self, x, h1, c1):
         out, (h2, c2) = self.decoder_lstm(x, (h1, c1))
         out = self.decoder_fc1(self.decoder_activate1(out))
-        out = self.decoder_batch_normalization(out)
+        out = self.decoder_normalization(out)
         out = self.decoder_fc2(self.decoder_activate2(out))
-        out = self.decoder_batch_normalization(out)
+        out = self.decoder_normalization(out)
         out = self.decoder_fc3(self.decoder_activate3(out))
-        out = self.decoder_batch_normalization(out)
+        out = self.decoder_normalization(out)
         out = self.decoder_fc4(self.decoder_activate4(out))
         return out, (h2, c2)
 
