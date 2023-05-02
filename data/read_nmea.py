@@ -25,10 +25,10 @@ for index in range(1, 6, 1):
 
     data = np.delete(data, data.shape[0] - 1, 0)
 
-    k_lat = m.pi * 6371393 * m.cos(data[0, 2] * m.pi / 180) / 180
-    k_lon = m.pi * 6371393 / 180
     init_lon = 113.3363841
     init_lat = 23.1690645
+    k_lat = m.pi * 6371393 * m.cos(init_lat * m.pi / 180) / 180
+    k_lon = m.pi * 6371393 / 180
     init_heading = 184.71
     data[:, 1] = data[:, 1] - init_lon
     data[:, 2] = data[:, 2] - init_lat
