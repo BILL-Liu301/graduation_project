@@ -7,7 +7,7 @@ import torch.optim as optim
 from util import training_data_input_xy, training_data_input_white_line, training_data_input_lane
 from util import testing_data_input_xy, testing_data_input_white_line, testing_data_input_lane
 from util import training_data_output, testing_data_output, index_box, data_reshape
-from util import data_size, input_size, row, column, size_row
+from util import data_size, input_size, row, column, size_row, theda_train, theda_test
 import matplotlib.pyplot as plt
 import torch.optim.lr_scheduler as scheduler
 
@@ -25,7 +25,7 @@ print('当前显卡的显存使用率:', torch.cuda.memory_allocated(0) / torch.
       '%')
 
 # 清空缓存，固定随即种子
-torch.manual_seed(1)
+# torch.manual_seed(1)
 torch.cuda.empty_cache()
 
 # 设置运行设备的环境为GPU
@@ -52,33 +52,33 @@ print(f'testing_data_input_lane: {testing_data_input_lane.shape}')
 print(f'testing_data_output: {testing_data_output.shape}')
 
 # 模式选取
-mode_switch = np.array([0, 0, 0, 0, 1])
+mode_switch = np.array([1, 0, 1, 1, 0])
 vector_map_switch = 1
 check_source_switch = 0
 
 # 定义基本参数
-size_basic = 64
-size_encoder_fc_input = data_size - 1  # 减去index
+size_basic = 128
+size_encoder_fc_input = data_size - 1  # 去除索引
 size_encoder_fc_middle = size_basic
 size_encoder_fc_output = size_basic
 size_encoder_lstm_input = size_encoder_fc_output
 size_encoder_lstm_hidden = size_basic
 size_encoder_activate_num_parameters = input_size
 
-size_decoder_lstm_input = size_encoder_lstm_hidden + 1 * row * column * vector_map_switch
-size_decoder_lstm_hidden = size_basic
+size_decoder_lstm_input = 2 * size_encoder_lstm_hidden + 1 * row * column * vector_map_switch
+size_decoder_lstm_hidden = 2 * size_encoder_lstm_hidden
 size_decoder_fc_input = size_decoder_lstm_hidden
 size_decoder_fc_middle = size_basic
 size_decoder_fc_output = 2
 
 size_connector_fc_input = size_decoder_fc_output
 size_connector_fc_middle = size_basic
-size_connector_fc_output = size_encoder_lstm_hidden
+size_connector_fc_output = 2 * size_encoder_lstm_hidden
 
 learning_rate_init = 1e-4
 learning_rate = learning_rate_init
-max_epoch = 5000
-batch_ratio = 0.2
+max_epoch = 2000
+batch_ratio = 0.25
 
 
 # 定义编码器
@@ -90,7 +90,7 @@ class Encoder(nn.Module):
         self.encoder_activate_init = 1.0
         self.encoder_lstm_hidden_size = encoder_lstm_hidden_size
         self.encoder_bias = True
-        self.encoder_lstm_num_layers = 2
+        self.encoder_lstm_num_layers = 1
 
         self.encoder_fc1 = nn.Linear(encoder_fc_input_size, encoder_fc_middle_size, bias=self.encoder_bias)
         self.encoder_fc2 = nn.Linear(encoder_fc_middle_size, encoder_fc_middle_size, bias=self.encoder_bias)
@@ -118,18 +118,18 @@ class Encoder(nn.Module):
         c1 = torch.ones(self.encoder_lstm_num_layers, x.size(0), self.encoder_lstm_hidden_size).to(device)
 
         out = self.encoder_fc1(self.encoder_activate1(x))
-        out = self.encoder_normalization(out)
+        # out = self.encoder_normalization(out)
         # out = self.encoder_fc2(self.encoder_activate2(out))
         # out = self.encoder_normalization(out)
         # out = self.encoder_fc3(self.encoder_activate3(out))
         # out = self.encoder_normalization(out)
         out = self.encoder_fc4(self.encoder_activate4(out))
-        out = self.encoder_normalization(out)
+        # out = self.encoder_normalization(out)
         out_front, (h_front, c_front) = self.encoder_lstm_front(out, (h0, c0))
         out_back, (h_back, c_back) = self.encoder_lstm_back(out.flip(dims=[1]), (h1, c1))
-        h = torch.add(h_front, h_back)
-        c = torch.add(c_front, c_back)
-        out = torch.add(out_front, out_back)
+        h = torch.cat([h_front, h_back], 2)
+        c = torch.cat([c_front, c_back], 2)
+        out = torch.cat([out_front, out_back], 2)
         out = out[:, -1, :].unsqueeze(1)
         return out, (h, c)
 
@@ -141,8 +141,8 @@ class Decoder(nn.Module):
         super(Decoder, self).__init__()
         self.decoder_lstm_hidden_size = decoder_lstm_hidden_size
         self.decoder_bias = True
-        self.decoder_activate_init = 1.0
-        self.decoder_lstm_num_layers = 2
+        self.decoder_activate_init = 0.5
+        self.decoder_lstm_num_layers = 1
 
         self.decoder_lstm = nn.LSTM(decoder_lstm_input_size, decoder_lstm_hidden_size,
                                     num_layers=self.decoder_lstm_num_layers, batch_first=True)
@@ -164,7 +164,7 @@ class Decoder(nn.Module):
     def forward(self, x, h1, c1):
         out, (h2, c2) = self.decoder_lstm(x, (h1, c1))
         out = self.decoder_fc1(self.decoder_activate1(out))
-        out = self.decoder_normalization(out)
+        # out = self.decoder_normalization(out)
         # out = self.decoder_fc2(self.decoder_activate2(out))
         # out = self.decoder_normalization(out)
         # out = self.decoder_fc3(self.decoder_activate3(out))
@@ -187,7 +187,7 @@ class Connector(nn.Module):
 
     def forward(self, x):
         out = self.connector_fc1(x)
-        out = self.connector_fc2(out)
+        # out = self.connector_fc2(out)
         # out = self.connector_fc3(out)
         # out = self.connector_fc4(out)
         out = self.connector_fc5(out)
@@ -211,7 +211,7 @@ criterion = nn.MSELoss()
 # 停止判定
 def judge_end(grad_min, grad_max, loss_item):
     # print(loss_item < 0.05, abs(grad_max) <= 0.05, abs(grad_min) <= 0.0001)
-    if loss_item < 1 and abs(grad_max) <= 1 and abs(grad_min) <= 0.0001:
+    if loss_item < 2 and abs(grad_max) <= 2 and abs(grad_min) <= 0.0001:
         return True
     return False
 
@@ -284,11 +284,6 @@ if mode_switch[0] == 1:
     torch.save(decoder, "end_decoder.pth")
     fig.savefig("figs/" + "single.png")
     plt.clf()
-print('当前显卡的显存使用率:', torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory * 100,
-      '%')
-torch.cuda.empty_cache()
-print('当前显卡的显存使用率:', torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory * 100,
-      '%')
 if mode_switch[1] == 1:
     print("单点模型测试")
 
@@ -453,8 +448,6 @@ if mode_switch[2] == 1:
         torch.save(decoder, "end_decoder.pth")
         torch.save(connector, "end_connector.pth")
     plt.clf()
-print('当前显卡的显存使用率:', torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory * 100,
-      '%')
 if mode_switch[3] == 1:
     print("循环预测模型测试")
     encoder = torch.load("end_encoder.pth")
@@ -563,6 +556,7 @@ if mode_switch[4] == 1:
     check_input_white_line_np = np.append(training_data_input_white_line, testing_data_input_white_line, axis=0)
     check_input_lane_np = np.append(training_data_input_lane, testing_data_input_lane, axis=0)
     check_output_np = np.append(training_data_output, testing_data_output, axis=0)
+    check_theda_np = np.append(theda_train, theda_test, axis=0)
 
     batch_size = check_input_xy_np.shape[0] * batch_ratio
     for each_batch in range(int(1 / batch_ratio)):
@@ -575,6 +569,7 @@ if mode_switch[4] == 1:
         check_input_white_line = check_input_white_line_np[index_start:index_end, :, :]
         check_input_lane = check_input_lane_np[index_start:index_end, :, :]
         check_output = check_output_np[index_start:index_end, :, :]
+        check_theda = check_theda_np[index_start:index_end, :, :]
 
         check_input_xy = torch.from_numpy(check_input_xy).to(torch.float32).to(device)
         check_input_white_line = torch.from_numpy(check_input_white_line).to(torch.float32).to(device)
@@ -597,7 +592,7 @@ if mode_switch[4] == 1:
 
         for i in range(0, check_output.shape[0]):
             for j in range(output.shape[1]):
-                theda = check_input_xy[i, -1, 5]
+                theda = check_theda[i, -1, -1]
                 index_xy = check_input_xy[i, -1, 0].cpu().detach().numpy()
                 index_car = check_input_xy[i, -1, -1].cpu().detach().numpy()
                 xy_temp = data_reshape[data_reshape[:, input_size - 1, 0] == index_xy, input_size - 1, :]
@@ -627,5 +622,4 @@ if mode_switch[4] == 1:
                          data_reshape[i, -1, -1], fontsize=10)
                 fig.savefig("../result/10/car_id" + str(data_reshape[i, -1, -1]) + ".png")
                 plt.clf()
-
 print(f"本次程序运行时间为：{int((time.time() - t_start) / 60)} min, {(time.time() - t_start) % 60}s")
