@@ -8,40 +8,40 @@ lane = np.load("lane.npy")
 
 white_line[:, 2] = -1.0 * white_line[:, 2]
 lane[:, 2] = -1.0 * lane[:, 2]
-lane_no = np.array([1, 1, 1, 2, 2])
 
 data_size = 6
-seq_size = 80
-jump_size = int(seq_size / 40)
-split_size = 5
+seq_size = 50
+jump_size = int(seq_size / 25)
+split_size = 15
 
 row = 15
 column = 15  # 必须为奇数
 size_row = 1  # 行高
 size_colum = 1  # 列宽
 
-# # time x y Vx Vy heading
-# path = "./npys/"
-# # path = "./00/"
-# files = sorted(os.listdir(path), reverse=False)
 # # time x y Vx Vy heading lane_no
 # data_reshape = np.array([[0, 0.0, 0.0, 0.0, 0.0, 0.0, 0]])
-# for index, file in enumerate(files):
-#     data = np.load(path + str(file))
-#     print(path + str(file), data.shape)
-#     data_reshape_temp = np.array([[0, 0.0, 0.0, 0.0, 0.0, 0.0, 0]])
-#     print(f"i：[0,{data.shape[0] - jump_size - seq_size*split_size})，{jump_size}")
-#     print(f"j：[0,{seq_size*split_size})，{split_size}")
-#     for i in range(0, data.shape[0] - jump_size - seq_size*split_size, jump_size):
-#         for j in range(0, seq_size*split_size, split_size):
-#             data_reshape_temp[-1, :] = np.append(np.array(data[i+j, :]), lane_no[index])
-#             # data_reshape_temp[-1, :] = np.append(np.array(data[i + j, :]), index)
-#             data_reshape_temp = np.r_[data_reshape_temp, np.array([[0, 0.0, 0.0, 0.0, 0.0, 0.0, 0]])]
+# for mix in range(1, 3, 1):
+#     for lane_no in range(1, 3, 1):
+#         # path = "./00/"
+#         path = "./npys/mix_" + str(mix) + "/" + str(lane_no) + "/"
+#         files = sorted(os.listdir(path), reverse=False)
+#         for index, file in enumerate(files):
+#             data = np.load(path + str(file))
+#             print(path + str(file), data.shape)
+#             data_reshape_temp = np.array([[0, 0.0, 0.0, 0.0, 0.0, 0.0, 0]])
+#             print(f"i：[0,{data.shape[0] - jump_size - seq_size*split_size})，{jump_size}")
+#             print(f"j：[0,{seq_size*split_size})，{split_size}")
+#             for i in range(0, data.shape[0] - jump_size - seq_size*split_size, jump_size):
+#                 for j in range(0, seq_size*split_size, split_size):
+#                     data_reshape_temp[-1, :] = np.append(np.array(data[i+j, :]), lane_no)
+#                     # data_reshape_temp[-1, :] = np.append(np.array(data[i + j, :]), index)
+#                     data_reshape_temp = np.r_[data_reshape_temp, np.array([[0, 0.0, 0.0, 0.0, 0.0, 0.0, 0]])]
 #
-#     data_reshape_temp = np.delete(data_reshape_temp, [-1], 0)
-#     data_reshape = np.r_[data_reshape, data_reshape_temp]
-#     print(index, str(file), data_reshape.shape)
-#     print("--------")
+#             data_reshape_temp = np.delete(data_reshape_temp, [-1], 0)
+#             data_reshape = np.r_[data_reshape, data_reshape_temp]
+#             print(index, str(file), data_reshape.shape)
+#             print("--------")
 # np.save("data_reshape.npy", data_reshape)
 
 data_reshape = np.load("data_reshape.npy")
@@ -49,9 +49,9 @@ data_reshape = np.delete(data_reshape, [0], 0)
 data_reshape = np.array(data_reshape.reshape(-1, seq_size, 7))
 print(data_reshape.shape)
 
-input_size = int(0.7 * seq_size)
+input_size = int(0.6 * seq_size)
 output_size = seq_size - input_size
-train_size = int(0.7 * data_reshape.shape[0])
+train_size = int(0.5 * data_reshape.shape[0])
 test_size = data_reshape.shape[0] - train_size
 
 training_data_input_xy = np.array(data_reshape[0:train_size, 0:input_size, :])
@@ -95,6 +95,12 @@ for i in range(training_data_input_xy.shape[0]):
         y_temp = training_data_input_xy[i, j, 2]
         training_data_input_xy[i, j, 1] = x_temp * math.cos(theda) - y_temp * math.sin(theda)
         training_data_input_xy[i, j, 2] = x_temp * math.sin(theda) + y_temp * math.cos(theda)
+
+        x_temp = training_data_input_xy[i, j, 3]
+        y_temp = training_data_input_xy[i, j, 4]
+        training_data_input_xy[i, j, 3] = x_temp * math.cos(theda) - y_temp * math.sin(theda)
+        training_data_input_xy[i, j, 4] = x_temp * math.sin(theda) + y_temp * math.cos(theda)
+
         training_data_input_xy[i, j, 5] = training_data_input_xy[i, j, 5] - training_data_input_xy[i, -1, 5]
 
     for j in range(training_data_output.shape[1]):
@@ -102,6 +108,12 @@ for i in range(training_data_input_xy.shape[0]):
         y_temp = training_data_output[i, j, 2]
         training_data_output[i, j, 1] = x_temp * math.cos(theda) - y_temp * math.sin(theda)
         training_data_output[i, j, 2] = x_temp * math.sin(theda) + y_temp * math.cos(theda)
+
+        x_temp = training_data_output[i, j, 3]
+        y_temp = training_data_output[i, j, 4]
+        training_data_output[i, j, 3] = x_temp * math.cos(theda) - y_temp * math.sin(theda)
+        training_data_output[i, j, 4] = x_temp * math.sin(theda) + y_temp * math.cos(theda)
+
         training_data_output[i, j, 5] = training_data_output[i, j, 5] - training_data_input_xy[i, -1, 5]
 
 theda_test = np.zeros([testing_data_input_xy.shape[0], 1, 1])
@@ -118,6 +130,12 @@ for i in range(testing_data_input_xy.shape[0]):
         y_temp = testing_data_input_xy[i, j, 2]
         testing_data_input_xy[i, j, 1] = x_temp * math.cos(theda) - y_temp * math.sin(theda)
         testing_data_input_xy[i, j, 2] = x_temp * math.sin(theda) + y_temp * math.cos(theda)
+
+        x_temp = testing_data_input_xy[i, j, 3]
+        y_temp = testing_data_input_xy[i, j, 4]
+        testing_data_input_xy[i, j, 3] = x_temp * math.cos(theda) - y_temp * math.sin(theda)
+        testing_data_input_xy[i, j, 4] = x_temp * math.sin(theda) + y_temp * math.cos(theda)
+
         testing_data_input_xy[i, j, 5] = testing_data_input_xy[i, j, 5] - testing_data_input_xy[i, -1, 5]
 
     for j in range(testing_data_output.shape[1]):
@@ -125,11 +143,17 @@ for i in range(testing_data_input_xy.shape[0]):
         y_temp = testing_data_output[i, j, 2]
         testing_data_output[i, j, 1] = x_temp * math.cos(theda) - y_temp * math.sin(theda)
         testing_data_output[i, j, 2] = x_temp * math.sin(theda) + y_temp * math.cos(theda)
+
+        x_temp = testing_data_output[i, j, 3]
+        y_temp = testing_data_output[i, j, 4]
+        testing_data_output[i, j, 3] = x_temp * math.cos(theda) - y_temp * math.sin(theda)
+        testing_data_output[i, j, 4] = x_temp * math.sin(theda) + y_temp * math.cos(theda)
+
         testing_data_output[i, j, 5] = testing_data_output[i, j, 5] - testing_data_input_xy[i, -1, 5]
 
 # plt.figure()
 # for i in range(training_data_input_xy.shape[0]):
-#     lim = 10
+#     lim = 15
 #     plt.xlim(-lim, lim)
 #     plt.ylim(-lim, lim)
 #     plt.plot(training_data_input_xy[i, :, 1], training_data_input_xy[i, :, 2], "*", color="r")
@@ -215,7 +239,7 @@ for i in range(training_data_input_xy.shape[0]):
     # plt.xlim(-lim, lim)
     # plt.ylim(-0, lim)
     # # plt.plot(training_data_input_xy[i, :, 1], training_data_input_xy[i, :, 2], "*", color="r")
-    # plt.plot(training_data_output[i, :, 1], training_data_output[i, :, 2], "*", color="b")
+    # plt.plot(training_data_output[i, :, 1], training_data_output[i, :, 2], "*", color="g")
     # plt.plot(white_line_temp[:, 1], white_line_temp[:, 2], "*", color="b")
     # plt.plot(lane_temp[:, 1], lane_temp[:, 2], ".", color="b")
     # for r in range(row):
@@ -240,7 +264,7 @@ for i in range(training_data_input_xy.shape[0]):
     # plt.imshow(np.flip(input_white_line[i, -1, :].reshape(row, column), axis=0))
     # plt.subplot(2, 2, 3)
     # plt.imshow(np.flip(input_lane[i, -1, :].reshape(row, column), axis=0))
-    # plt.pause(0.1)
+    # plt.pause(0.01)
     # plt.clf()
 input_white_line[np.nonzero(input_white_line)] = 1.0
 input_lane[np.nonzero(input_lane)] = 1.0
@@ -276,7 +300,7 @@ for i in range(testing_data_input_xy.shape[0]):
     # plt.xlim(-lim / 2, lim / 2)
     # plt.ylim(-0, lim)
     # # plt.plot(testing_data_input_xy[i, :, 1], testing_data_input_xy[i, :, 2], "*", color="r")
-    # plt.plot(testing_data_output[i, :, 1], testing_data_output[i, :, 2], "*", color="b")
+    # plt.plot(testing_data_output[i, :, 1], testing_data_output[i, :, 2], "*", color="g")
     # plt.plot(white_line_temp[:, 1], white_line_temp[:, 2], "*", color="b")
     # plt.plot(lane_temp[:, 1], lane_temp[:, 2], "*", color="b")
     #

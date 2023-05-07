@@ -57,7 +57,7 @@ vector_map_switch = 1
 check_source_switch = 0
 
 # 定义基本参数
-size_basic = 128
+size_basic = 64
 size_encoder_fc_input = data_size - 1  # 去除索引
 size_encoder_fc_middle = size_basic
 size_encoder_fc_output = size_basic
@@ -78,7 +78,7 @@ size_connector_fc_output = 2 * size_encoder_lstm_hidden
 learning_rate_init = 1e-4
 learning_rate = learning_rate_init
 max_epoch = 2000
-batch_ratio = 0.25
+batch_ratio = 0.01
 
 
 # 定义编码器
@@ -129,8 +129,7 @@ class Encoder(nn.Module):
         out_back, (h_back, c_back) = self.encoder_lstm_back(out.flip(dims=[1]), (h1, c1))
         h = torch.cat([h_front, h_back], 2)
         c = torch.cat([c_front, c_back], 2)
-        out = torch.cat([out_front, out_back], 2)
-        out = out[:, -1, :].unsqueeze(1)
+        out = torch.cat([out_front[:, -1, :].unsqueeze(1), out_back[:, -1, :].unsqueeze(1)], 2)
         return out, (h, c)
 
 
@@ -211,7 +210,7 @@ criterion = nn.MSELoss()
 # 停止判定
 def judge_end(grad_min, grad_max, loss_item):
     # print(loss_item < 0.05, abs(grad_max) <= 0.05, abs(grad_min) <= 0.0001)
-    if loss_item < 2 and abs(grad_max) <= 2 and abs(grad_min) <= 0.0001:
+    if loss_item < 0.05 and abs(grad_max) <= 0.05 and abs(grad_min) <= 0.001:
         return True
     return False
 
@@ -229,46 +228,45 @@ if mode_switch[0] == 1:
 
     all_loss = np.zeros([1])
     for epoch in range(int(max_epoch / 10)):
-        torch.cuda.empty_cache()
-        train_input_xy = torch.from_numpy(training_data_input_xy[:, :, 1:data_size]).to(torch.float32).to(device)
-        train_input_lane = torch.from_numpy(training_data_input_lane).to(torch.float32).to(device)
-        train_output = torch.from_numpy(training_data_output).to(torch.float32).to(device)
-        encoded, (h_encoded, c_encoded) = encoder(train_input_xy)
-        if vector_map_switch == 1:
-            encoded = torch.cat([encoded, train_input_lane], 2)
-        decoded, _ = decoder(encoded, h_encoded, c_encoded)
-        loss = criterion(decoded, train_output[:, 0, :].unsqueeze(1))
-        # print('当前显卡的显存使用率:',
-        #       torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory * 100, '%')
+
+        batch_size = training_data_input_xy.shape[0] * batch_ratio
+        for each_batch in range(int(1 / batch_ratio)):
+            torch.cuda.empty_cache()
+            index_start = int(each_batch * batch_size)
+            index_end = int((each_batch + 1) * batch_size)
+            train_input_xy = training_data_input_xy[index_start:index_end, :, :][:, :, 1:data_size]
+            train_input_white_line = training_data_input_white_line[index_start:index_end, :, :]
+            train_input_lane = training_data_input_lane[index_start:index_end, :, :]
+            train_output = training_data_output[index_start:index_end, :, :]
+
+            train_input_xy = torch.from_numpy(train_input_xy).to(torch.float32).to(device)
+            train_input_white_line = torch.from_numpy(train_input_white_line).to(torch.float32).to(device)
+            train_input_lane = torch.from_numpy(train_input_lane).to(torch.float32).to(device)
+            train_output = torch.from_numpy(train_output).to(torch.float32).to(device)
+
+            encoded, (h_encoded, c_encoded) = encoder(train_input_xy)
+            if vector_map_switch == 1:
+                encoded = torch.cat([encoded, train_input_lane], 2)
+            decoded, _ = decoder(encoded, h_encoded, c_encoded)
+            loss = criterion(decoded, train_output[:, 0, :].unsqueeze(1))
+            all_loss[epoch] = loss.item()
+
+            optimizer_encoder.zero_grad()
+            optimizer_decoder.zero_grad()
+            loss.backward()
+            optimizer_encoder.step()
+            optimizer_decoder.step()
 
         plt.clf()
-
-        plt.subplot(2, 1, 1)
-        all_loss[epoch] = loss.item()
         plt.plot(all_loss)
         plt.text(epoch / 2, (all_loss[:].max() + all_loss[:].min()) / 2,
                  f"lr:{learning_rate:.10f}, all_loss:{all_loss[-1]}", fontsize=10)
 
-        plt.subplot(2, 1, 2)
-        for i in range(20):
-            plt.plot(np.append(train_output.cpu().detach().numpy()[i, 0, 0],
-                               decoded.cpu().detach().numpy()[i, :, 0]),
-                     np.append(train_output.cpu().detach().numpy()[i, 0, 1],
-                               decoded.cpu().detach().numpy()[i, :, 1]))
-
         plt.pause(0.001)
 
+        if (epoch + 1) % int(max_epoch / 100) == 0:
+            print(f"epoch:{epoch + 1},loss:{all_loss[-1]}")
         all_loss = np.append(all_loss, [0.0], axis=0)
-
-        optimizer_encoder.zero_grad()
-        optimizer_decoder.zero_grad()
-        loss.backward()
-
-        if (epoch + 1) % int(max_epoch / 10) == 0:
-            print(f"epoch:{epoch + 1},loss:{loss.item()}")
-
-        optimizer_encoder.step()
-        optimizer_decoder.step()
 
         scheduler_encoder.step()
         scheduler_decoder.step()
@@ -319,7 +317,7 @@ if mode_switch[2] == 1:
     decoder = torch.load("end_decoder.pth")
 
     for points in range(1, training_data_output.shape[1], 1):
-        learning_rate = learning_rate_init * points * 10
+        learning_rate = learning_rate_init * points
         optimizer_decoder = optim.Adam(decoder.parameters(), lr=(learning_rate / 10))
         optimizer_connector = optim.Adam(connector.parameters(), lr=learning_rate)
         scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=int(min(max_epoch / 10, 30)), gamma=0.7,
@@ -455,7 +453,6 @@ if mode_switch[3] == 1:
     connector = torch.load("end_connector.pth")
 
     all_loss = np.zeros([1])
-    batch_ratio = batch_ratio / 10
     if check_source_switch == 0:
         batch_size = testing_data_input_xy.shape[0] * batch_ratio
     else:
@@ -501,13 +498,13 @@ if mode_switch[3] == 1:
             all_loss = np.append(all_loss, [0.0], axis=0)
 
         for i in range(0, check_output.shape[0], int(batch_size / 10)):
-            if i % int(batch_size / 10) == 0:
+            if all_loss[(index_start + i)] >= 1:
                 fig.savefig("../result/10/" + str(each_batch) + "_" + str(i) + ".png")
             plt.clf()
             plt.subplot(1, 2, 1)
-            # lim = row * size_row + 1
-            # plt.xlim(-lim / 2, lim / 2)
-            # plt.ylim(-0, lim)
+            lim = row * size_row + 1
+            plt.xlim(-lim / 2, lim / 2)
+            plt.ylim(0, lim)
             plt.plot(check_input_xy.cpu().detach().numpy()[i, :, 0], check_input_xy.cpu().detach().numpy()[i, :, 1])
             plt.plot(check_output.cpu().detach().numpy()[i, :, 0], check_output.cpu().detach().numpy()[i, :, 1])
             plt.plot(output.cpu().detach().numpy()[i, :, 0], output.cpu().detach().numpy()[i, :, 1], "*")
