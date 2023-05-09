@@ -32,7 +32,7 @@ size_colum = 1  # 列宽
 #             data_reshape_temp = np.array([[0, 0.0, 0.0, 0.0, 0.0, 0.0, 0]])
 #             print(f"i：[0,{data.shape[0] - jump_size - seq_size*split_size})，{jump_size}")
 #             print(f"j：[0,{seq_size*split_size})，{split_size}")
-#             for i in range(0, data.shape[0] - jump_size - seq_size*split_size, jump_size):
+#             for i in range(0, int(data.shape[0] - jump_size - seq_size*split_size*1.5), jump_size):
 #                 for j in range(0, seq_size*split_size, split_size):
 #                     data_reshape_temp[-1, :] = np.append(np.array(data[i+j, :]), lane_no)
 #                     # data_reshape_temp[-1, :] = np.append(np.array(data[i + j, :]), index)

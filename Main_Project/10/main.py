@@ -52,12 +52,12 @@ print(f'testing_data_input_lane: {testing_data_input_lane.shape}')
 print(f'testing_data_output: {testing_data_output.shape}')
 
 # 模式选取
-mode_switch = np.array([1, 0, 1, 1, 0])
+mode_switch = np.array([0, 0, 0, 1, 0])
 vector_map_switch = 1
 check_source_switch = 0
 
 # 定义基本参数
-size_basic = 64
+size_basic = 128
 size_encoder_fc_input = data_size - 1  # 去除索引
 size_encoder_fc_middle = size_basic
 size_encoder_fc_output = size_basic
@@ -77,8 +77,8 @@ size_connector_fc_output = 2 * size_encoder_lstm_hidden
 
 learning_rate_init = 1e-4
 learning_rate = learning_rate_init
-max_epoch = 2000
-batch_ratio = 0.01
+max_epoch = 1000
+batch_ratio = 0.2
 
 
 # 定义编码器
@@ -89,7 +89,7 @@ class Encoder(nn.Module):
         super(Encoder, self).__init__()
         self.encoder_activate_init = 1.0
         self.encoder_lstm_hidden_size = encoder_lstm_hidden_size
-        self.encoder_bias = True
+        self.encoder_bias = False
         self.encoder_lstm_num_layers = 1
 
         self.encoder_fc1 = nn.Linear(encoder_fc_input_size, encoder_fc_middle_size, bias=self.encoder_bias)
@@ -139,8 +139,8 @@ class Decoder(nn.Module):
                  decoder_fc_input_size, decoder_fc_middle_size, decoder_fc_output_size):
         super(Decoder, self).__init__()
         self.decoder_lstm_hidden_size = decoder_lstm_hidden_size
-        self.decoder_bias = True
-        self.decoder_activate_init = 0.5
+        self.decoder_bias = False
+        self.decoder_activate_init = 1
         self.decoder_lstm_num_layers = 1
 
         self.decoder_lstm = nn.LSTM(decoder_lstm_input_size, decoder_lstm_hidden_size,
@@ -176,20 +176,36 @@ class Decoder(nn.Module):
 class Connector(nn.Module):
     def __init__(self, connector_fc_input_size, connector_fc_middle_size, connector_fc_output_size):
         super(Connector, self).__init__()
-        self.connector_bias = True
+        self.connector_bias = False
+        self.connector_activate_init = 1
 
         self.connector_fc1 = nn.Linear(connector_fc_input_size, connector_fc_middle_size, bias=self.connector_bias)
         self.connector_fc2 = nn.Linear(connector_fc_middle_size, connector_fc_middle_size, bias=self.connector_bias)
         self.connector_fc3 = nn.Linear(connector_fc_middle_size, connector_fc_middle_size, bias=self.connector_bias)
         self.connector_fc4 = nn.Linear(connector_fc_middle_size, connector_fc_middle_size, bias=self.connector_bias)
         self.connector_fc5 = nn.Linear(connector_fc_middle_size, connector_fc_output_size, bias=self.connector_bias)
+        self.connector_activate1 = nn.PReLU(num_parameters=1,
+                                            init=self.connector_activate_init)
+        self.connector_activate2 = nn.PReLU(num_parameters=1,
+                                            init=self.connector_activate_init)
+        self.connector_activate3 = nn.PReLU(num_parameters=1,
+                                            init=self.connector_activate_init)
+        self.connector_activate4 = nn.PReLU(num_parameters=1,
+                                            init=self.connector_activate_init)
+        self.connector_activate5 = nn.PReLU(num_parameters=1,
+                                            init=self.connector_activate_init)
+        self.connector_normalization = nn.LayerNorm([1, connector_fc_middle_size])
 
     def forward(self, x):
-        out = self.connector_fc1(x)
-        # out = self.connector_fc2(out)
-        # out = self.connector_fc3(out)
-        # out = self.connector_fc4(out)
-        out = self.connector_fc5(out)
+        out = self.connector_fc1(self.connector_activate1(x))
+        # out = self.connector_normalization(out)
+        # out = self.connector_fc2(self.connector_activate2(out))
+        # out = self.connector_normalization(out)
+        # out = self.connector_fc3(self.connector_activate3(out))
+        # out = self.connector_normalization(out)
+        # out = self.connector_fc4(self.connector_activate4(out))
+        # out = self.connector_normalization(out)
+        out = self.connector_fc5(self.connector_activate5(out))
         return out
 
 
@@ -210,7 +226,7 @@ criterion = nn.MSELoss()
 # 停止判定
 def judge_end(grad_min, grad_max, loss_item):
     # print(loss_item < 0.05, abs(grad_max) <= 0.05, abs(grad_min) <= 0.0001)
-    if loss_item < 0.05 and abs(grad_max) <= 0.05 and abs(grad_min) <= 0.001:
+    if loss_item < 1 and abs(grad_max) <= 1 and abs(grad_min) <= 0.001:
         return True
     return False
 
@@ -227,7 +243,7 @@ if mode_switch[0] == 1:
                                          last_epoch=-1)
 
     all_loss = np.zeros([1])
-    for epoch in range(int(max_epoch / 10)):
+    for epoch in range(int(max_epoch / 50)):
 
         batch_size = training_data_input_xy.shape[0] * batch_ratio
         for each_batch in range(int(1 / batch_ratio)):
@@ -428,7 +444,7 @@ if mode_switch[2] == 1:
             all_loss = np.append(all_loss, [0.0], axis=0)
             all_grad_abs = np.append(all_grad_abs, np.array([[0.0, 10]]), axis=0)
 
-            if (epoch + 1) % int(max_epoch / 10) == 0:
+            if (epoch + 1) % int(max_epoch / 100) == 0:
                 print(f"points:{points},epoch:{epoch + 1},loss:{all_loss[-2]}")
 
             scheduler_decoder.step()
@@ -442,6 +458,8 @@ if mode_switch[2] == 1:
             training_data_output = training_data_output[rand_para]
 
         fig.savefig("figs/" + str(points + 1) + ".png")
+        print(f"points:{points},loss:{all_loss[-2]}")
+        print("------------------------------------")
 
         torch.save(decoder, "end_decoder.pth")
         torch.save(connector, "end_connector.pth")
@@ -497,7 +515,7 @@ if mode_switch[3] == 1:
             all_loss[-1] = loss.item()
             all_loss = np.append(all_loss, [0.0], axis=0)
 
-        for i in range(0, check_output.shape[0], int(batch_size / 10)):
+        for i in range(0, check_output.shape[0]):
             if all_loss[(index_start + i)] >= 1:
                 fig.savefig("../result/10/" + str(each_batch) + "_" + str(i) + ".png")
             plt.clf()
@@ -533,12 +551,14 @@ if mode_switch[3] == 1:
                      (all_loss[0:(index_start + i + 1)].max() + all_loss[0:(index_start + i + 1)].min()) / 2,
                      f"batch_num = {each_batch}", fontsize=10)
             plt.plot([0, index_start + i],
-                     [all_loss[0:(index_start + i + 1)].mean(), all_loss[0:(index_start + i + 1)].mean()], "r--")
+                     [all_loss[0:(index_start + i + 1)].mean(), all_loss[0:(index_start + i + 1)].mean()],
+                     "r--")
             plt.text((index_start + i) / 2, all_loss[0:(index_start + i + 1)].mean(),
                      str(all_loss[0:(index_start + i + 1)].mean()), fontsize=10)
             plt.plot([0, index_start + i],
-                     [all_loss[0:(index_start + i + 1)].max(), all_loss[0:(index_start + i + 1)].max()], "r--")
-            plt.text((0 + index_start + i) / 2, all_loss.max(),
+                     [all_loss[0:(index_start + i + 1)].max(), all_loss[0:(index_start + i + 1)].max()],
+                     "r--")
+            plt.text((index_start + i) / 2, all_loss[0:(index_start + i + 1)].max(),
                      str(all_loss[0:(index_start + i + 1)].max()), fontsize=10)
             plt.pause(0.01)
     fig.savefig("../result/10/end.png")
@@ -605,8 +625,10 @@ if mode_switch[4] == 1:
                 y_temp = check_input_xy.cpu().detach().numpy()[i, j, 2]
                 check_input_xy[i, j, 1] = x_temp * math.cos(theda) - y_temp * math.sin(theda)
                 check_input_xy[i, j, 2] = x_temp * math.sin(theda) + y_temp * math.cos(theda)
-                check_input_xy[i, j, 1] = check_input_xy[i, j, 1] + torch.tensor(xy_temp[xy_temp[:, -1] == index_car, 1]).to(device)
-                check_input_xy[i, j, 2] = check_input_xy[i, j, 2] + torch.tensor(xy_temp[xy_temp[:, -1] == index_car, 2]).to(device)
+                check_input_xy[i, j, 1] = check_input_xy[i, j, 1] + torch.tensor(
+                    xy_temp[xy_temp[:, -1] == index_car, 1]).to(device)
+                check_input_xy[i, j, 2] = check_input_xy[i, j, 2] + torch.tensor(
+                    xy_temp[xy_temp[:, -1] == index_car, 2]).to(device)
 
             plt.plot(output.cpu().detach().numpy()[i, :, 0], output.cpu().detach().numpy()[i, :, 1], "*")
             # plt.plot(check_input_xy.cpu().detach().numpy()[i, :, 1], check_input_xy.cpu().detach().numpy()[i, :, 2])
