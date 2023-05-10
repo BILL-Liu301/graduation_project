@@ -11,35 +11,42 @@ for lane in range(1, 3, 1):
         # stamp x y Vx Vy heading
         data = np.array([[0, 0.0, 0.0, 0.0, 0.0, 0.0]])
 
-        for each_line in data_source:
-            # print(each_line[50:56])
-            if each_line[50:56] == '$GPAGM':
+        for each_line in data_source[1:]:
+            each_line_separate = each_line.split(',')
+            if each_line_separate[4] == '$GPAGM':
                 each_line_separate = each_line.split(',')
-                # print(each_line_separate)
+                # print(2each_line_separate)
                 data[-1, 0] = data.shape[0]
-                data[-1, 1] = float(each_line_separate[17])  # 经度
-                data[-1, 2] = float(each_line_separate[16])  # 纬度
-                data[-1, 3] = float(each_line_separate[20])  # 东向速度
-                data[-1, 4] = float(each_line_separate[19])  # 北向速度
-                data[-1, 5] = float(each_line_separate[7])  # 与正北偏航
+                lon = float(each_line_separate[17])  # 经度
+                lat = float(each_line_separate[16])  # 纬度
+                ve = float(each_line_separate[20])  # 东向速度
+                vn = float(each_line_separate[19])  # 北向速度
+                heading = float(each_line_separate[7])  # 与正北偏航
+                if lon <= 20 or lon <= 110:
+                    continue
+
+                data[-1, 1] = lon  # 经度
+                data[-1, 2] = lat  # 纬度
+                data[-1, 3] = ve  # 东向速度
+                data[-1, 4] = vn  # 北向速度
+                data[-1, 5] = heading  # 与正北偏航
                 data = np.r_[data, np.array([[0, 0.0, 0.0, 0.0, 0.0, 0.0]])]
 
         data = np.delete(data, data.shape[0] - 1, 0)
+        print(str(lane), str(index), data.shape)
+        print("-------------")
 
-        init_lon = 113.3363841
-        init_lat = 23.1690645
+        start_lon = 113.3363841
+        start_lat = 23.1690645
+        init_lon = data[int(data.shape[0] / 2), 1]
+        init_lat = data[int(data.shape[0] / 2), 2]
         k_lat = m.pi * 6371393 * m.cos(init_lat * m.pi / 180) / 180
         k_lon = m.pi * 6371393 / 180
         init_heading = 184.71
-        data[:, 1] = data[:, 1] - init_lon
-        data[:, 2] = data[:, 2] - init_lat
+        data[:, 1] = data[:, 1] - start_lon
+        data[:, 2] = data[:, 2] - start_lat
         # data[:, 5] = data[:, 5] - init_heading
         data[:, 1] = data[:, 1] * k_lon
         data[:, 2] = data[:, 2] * k_lat
-
-        # plt.figure("数据源")
-        # plt.plot(data[:, 1], "*")
-        # plt.plot(data[:, 3], ".")
-        # plt.show()
 
         np.save("230507/npys/" + str(lane) + "/" + str(index) + ".npy", data)

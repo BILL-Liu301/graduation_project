@@ -52,12 +52,12 @@ print(f'testing_data_input_lane: {testing_data_input_lane.shape}')
 print(f'testing_data_output: {testing_data_output.shape}')
 
 # 模式选取
-mode_switch = np.array([0, 0, 0, 1, 0])
+mode_switch = np.array([1, 0, 1, 1, 0])
 vector_map_switch = 1
 check_source_switch = 0
 
 # 定义基本参数
-size_basic = 128
+size_basic = 64
 size_encoder_fc_input = data_size - 1  # 去除索引
 size_encoder_fc_middle = size_basic
 size_encoder_fc_output = size_basic
@@ -77,8 +77,8 @@ size_connector_fc_output = 2 * size_encoder_lstm_hidden
 
 learning_rate_init = 1e-4
 learning_rate = learning_rate_init
-max_epoch = 1000
-batch_ratio = 0.2
+max_epoch = 500
+batch_ratio = 0.1
 
 
 # 定义编码器
@@ -225,8 +225,8 @@ criterion = nn.MSELoss()
 
 # 停止判定
 def judge_end(grad_min, grad_max, loss_item):
-    # print(loss_item < 0.05, abs(grad_max) <= 0.05, abs(grad_min) <= 0.0001)
-    if loss_item < 1 and abs(grad_max) <= 1 and abs(grad_min) <= 0.001:
+    # print(loss_item < 2, abs(grad_max) <= 2, abs(grad_min) <= 0.0001)
+    if loss_item < 2 and abs(grad_max) <= 2 and abs(grad_min) <= 0.001:
         return True
     return False
 
@@ -247,7 +247,9 @@ if mode_switch[0] == 1:
 
         batch_size = training_data_input_xy.shape[0] * batch_ratio
         for each_batch in range(int(1 / batch_ratio)):
-            torch.cuda.empty_cache()
+            print(f"epoch:{epoch + 1}/{max_epoch / 50}, "
+                  f"batch:{each_batch + 1}/{int(1 / batch_ratio)}, "
+                  f"loss:{all_loss[-1]:.5f}")
             index_start = int(each_batch * batch_size)
             index_end = int((each_batch + 1) * batch_size)
             train_input_xy = training_data_input_xy[index_start:index_end, :, :][:, :, 1:data_size]
@@ -280,8 +282,6 @@ if mode_switch[0] == 1:
 
         plt.pause(0.001)
 
-        if (epoch + 1) % int(max_epoch / 100) == 0:
-            print(f"epoch:{epoch + 1},loss:{all_loss[-1]}")
         all_loss = np.append(all_loss, [0.0], axis=0)
 
         scheduler_encoder.step()
@@ -346,6 +346,10 @@ if mode_switch[2] == 1:
         for epoch in range(max_epoch):
             batch_size = training_data_input_xy.shape[0] * batch_ratio
             for each_batch in range(int(1 / batch_ratio)):
+                print(f"epoch:{epoch + 1}/{max_epoch}, "
+                      f"points:{points + 1}/{training_data_output.shape[1]}, "
+                      f"batch:{each_batch + 1}/{int(1 / batch_ratio)}, "
+                      f"loss:{all_loss[-1]:.5f}")
                 torch.cuda.empty_cache()
                 index_start = int(each_batch * batch_size)
                 index_end = int((each_batch + 1) * batch_size)
@@ -380,9 +384,6 @@ if mode_switch[2] == 1:
                 loss.backward()
                 optimizer_connector.step()
                 optimizer_decoder.step()
-
-            # print('当前显卡的显存使用率:',
-            #       torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory * 100, '%')
 
             for name, param in decoder.named_parameters():
                 if param.grad is None:
@@ -422,30 +423,28 @@ if mode_switch[2] == 1:
             plt.subplot(3, 1, 1)
             plt.plot(all_loss)
             plt.text(epoch / 2, (all_loss[:].max() + all_loss[:].min()) / 2,
-                     f"point:{points}, lr:{learning_rate:.10f}, all_loss:{all_loss[-1]}", fontsize=10)
+                     f"point:{points + 1}, lr:{learning_rate:.10f}, all_loss:{all_loss[-1]}", fontsize=10)
 
             plt.subplot(3, 1, 2)
             plt.plot(all_grad_abs[:, 0])
             plt.plot([0.0, epoch], [0.0, 0.0], "r--")
             plt.text(epoch / 2, (all_grad_abs[:, 0].max() + all_grad_abs[:, 0].min()) / 2,
-                     f"point:{points}, grad_max:{all_grad_abs[-1, 0]}", fontsize=10)
+                     f"point:{points + 1}, grad_max:{all_grad_abs[-1, 0]}", fontsize=10)
 
             plt.subplot(3, 1, 3)
             plt.plot(all_grad_abs[:, 1])
             plt.plot([0.0, epoch], [0.0, 0.0], "r--")
             plt.text(epoch / 2, (all_grad_abs[:, 1].max() + all_grad_abs[:, 1].min()) / 2,
-                     f"point:{points}, grad_max:{all_grad_abs[-1, 1]}", fontsize=10)
+                     f"point:{points + 1}, grad_max:{all_grad_abs[-1, 1]}", fontsize=10)
 
             plt.pause(0.01)
 
-            if judge_end(all_grad_abs[-1, 1], all_grad_abs[-1, 0], all_loss[-1]):
+            if epoch >= 10 and judge_end(all_grad_abs[-1, 1], all_grad_abs[-1, 0], all_loss[-1]):
+                print(f"points:{points + 1},epoch:{epoch + 1},loss:{all_loss[-1]}")
                 break
 
             all_loss = np.append(all_loss, [0.0], axis=0)
             all_grad_abs = np.append(all_grad_abs, np.array([[0.0, 10]]), axis=0)
-
-            if (epoch + 1) % int(max_epoch / 100) == 0:
-                print(f"points:{points},epoch:{epoch + 1},loss:{all_loss[-2]}")
 
             scheduler_decoder.step()
             scheduler_connector.step()
@@ -458,7 +457,7 @@ if mode_switch[2] == 1:
             training_data_output = training_data_output[rand_para]
 
         fig.savefig("figs/" + str(points + 1) + ".png")
-        print(f"points:{points},loss:{all_loss[-2]}")
+        print(f"points:{points + 1},loss:{all_loss[-2]}")
         print("------------------------------------")
 
         torch.save(decoder, "end_decoder.pth")

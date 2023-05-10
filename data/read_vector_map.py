@@ -98,6 +98,9 @@ if free_point != free_point_pre:
     print(f"Lane的自由点数量不对，当前free_point={free_point}，与free_point={free_point_pre}不符合")
     raise IndexError
 
+WhiteLine[:, 2] = -1.0 * WhiteLine[:, 2] + 2
+Lane[:, 2] = -1.0 * Lane[:, 2] + 2
+
 np.save("230415/npys/white_line.npy", WhiteLine)
 np.save("230415/npys/lane.npy", Lane)
 
