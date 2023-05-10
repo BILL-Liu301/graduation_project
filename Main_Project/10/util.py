@@ -14,6 +14,7 @@ data_size = 6
 seq_size = 50
 jump_size = int(seq_size / 25)
 split_size = 15
+remove_ratio = 0.1
 
 row = 15
 column = 15  # 必须为奇数
@@ -32,14 +33,17 @@ size_colum = 1  # 列宽
 #             data = np.load(path + str(file))
 #             print(path + str(file), data.shape)
 #             data_reshape_temp = np.array([[0, 0.0, 0.0, 0.0, 0.0, 0.0, 0]])
-#             print(f"i：[0,{data.shape[0] - jump_size - seq_size*split_size})，{jump_size}")
-#             print(f"j：[0,{seq_size*split_size})，{split_size}")
-#             for i in range(0, int(data.shape[0] - jump_size - seq_size*split_size*1.1), jump_size):
+#             print(f"i：[{int(data.shape[0] * remove_ratio)}, "
+#                   f"{int(- jump_size - seq_size*split_size - data.shape[0] * remove_ratio)}),"
+#                   f"{jump_size}")
+#             print(f"j：[0, {seq_size*split_size}),{split_size}")
+#             for i in range(int(data.shape[0] * remove_ratio),
+#                            int(data.shape[0] - jump_size - seq_size*split_size - data.shape[0] * remove_ratio),
+#                            jump_size):
 #                 for j in range(0, seq_size*split_size, split_size):
 #                     data_reshape_temp[-1, :] = np.append(np.array(data[i+j, :]), lane_no)
 #                     # data_reshape_temp[-1, :] = np.append(np.array(data[i + j, :]), index)
 #                     data_reshape_temp = np.r_[data_reshape_temp, np.array([[0, 0.0, 0.0, 0.0, 0.0, 0.0, 0]])]
-#
 #             data_reshape_temp = np.delete(data_reshape_temp, [-1], 0)
 #             data_reshape = np.r_[data_reshape, data_reshape_temp]
 #             print(index, str(file), data_reshape.shape)
