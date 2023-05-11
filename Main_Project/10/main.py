@@ -16,16 +16,11 @@ print('CUDA版本:', torch.version.cuda)
 print('Pytorch版本:', torch.__version__)
 print('显卡是否可用:', '可用' if (torch.cuda.is_available()) else '不可用')
 print('显卡数量:', torch.cuda.device_count())
-print('是否支持BF16数字格式:', '支持' if (torch.cuda.is_bf16_supported()) else '不支持')
 print('当前显卡型号:', torch.cuda.get_device_name())
-print('当前显卡的CUDA算力:', torch.cuda.get_device_capability())
 print('当前显卡的总显存:', torch.cuda.get_device_properties(0).total_memory / 1024 / 1024 / 1024, 'GB')
-print('是否支持TensorCore:', '支持' if (torch.cuda.get_device_properties(0).major >= 7) else '不支持')
-print('当前显卡的显存使用率:', torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory * 100,
-      '%')
 
 # 清空缓存，固定随即种子
-# torch.manual_seed(1)
+torch.manual_seed(1)
 torch.cuda.empty_cache()
 
 # 设置运行设备的环境为GPU
@@ -52,7 +47,7 @@ print(f'testing_data_input_lane: {testing_data_input_lane.shape}')
 print(f'testing_data_output: {testing_data_output.shape}')
 
 # 模式选取
-mode_switch = np.array([0, 0, 0, 1, 0])
+mode_switch = np.array([1, 1, 1, 1, 0])
 vector_map_switch = 1
 check_source_switch = 0
 
@@ -75,10 +70,10 @@ size_connector_fc_input = size_decoder_fc_output
 size_connector_fc_middle = size_basic
 size_connector_fc_output = 2 * size_encoder_lstm_hidden
 
-learning_rate_init = 1e-4
+learning_rate_init = 1e-3
 learning_rate = learning_rate_init
-max_epoch = 500
-batch_ratio = 0.1
+max_epoch = 200
+batch_ratio = 0.2
 
 
 # 定义编码器
@@ -224,9 +219,10 @@ criterion = nn.MSELoss()
 
 
 # 停止判定
-def judge_end(grad_min, grad_max, loss_item):
+def judge_end(point_num, grad_min, grad_max, loss_item):
+    ref = math.sqrt(point_num)
     # print(loss_item < 2, abs(grad_max) <= 2, abs(grad_min) <= 0.0001)
-    if loss_item < 2 and abs(grad_max) <= 2 and abs(grad_min) <= 0.001:
+    if loss_item < ref and abs(grad_max) <= ref and abs(grad_min) <= 0.001:
         return True
     return False
 
@@ -237,13 +233,13 @@ fig = plt.figure()
 if mode_switch[0] == 1:
     print("进行单点模型训练")
 
-    scheduler_encoder = scheduler.StepLR(optimizer_encoder, step_size=int(min(max_epoch / 10, 30)), gamma=0.7,
+    scheduler_encoder = scheduler.StepLR(optimizer_encoder, step_size=int(min(max_epoch / 10, 10)), gamma=0.7,
                                          last_epoch=-1)
-    scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=int(min(max_epoch / 10, 30)), gamma=0.7,
+    scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=int(min(max_epoch / 10, 10)), gamma=0.7,
                                          last_epoch=-1)
 
     all_loss = np.zeros([1])
-    for epoch in range(int(max_epoch / 50)):
+    for epoch in range(int(max_epoch / 2)):
 
         batch_size = training_data_input_xy.shape[0] * batch_ratio
         for each_batch in range(int(1 / batch_ratio)):
@@ -276,9 +272,13 @@ if mode_switch[0] == 1:
             optimizer_decoder.step()
 
         plt.clf()
-        plt.plot(all_loss)
-        plt.text(epoch / 2, (all_loss[:].max() + all_loss[:].min()) / 2,
-                 f"lr:{learning_rate:.10f}, all_loss:{all_loss[-1]}", fontsize=10)
+
+        plt.title("Single Point Prediction Training Data", fontsize=15)
+        plt.plot(all_loss, label="Loss")
+        plt.legend(loc='upper right')
+        # plt.text(epoch / 2, (all_loss[:].max() + all_loss[:].min()) / 2,
+        #          f"lr:{learning_rate:.10f}, all_loss:{all_loss[-1]}", fontsize=15)
+        plt.legend()
 
         plt.pause(0.001)
 
@@ -298,35 +298,67 @@ if mode_switch[0] == 1:
     torch.save(decoder, "end_decoder.pth")
     fig.savefig("figs/" + "single.png")
     plt.clf()
+    print("--------------")
+    print(f"当前程序运行时间为：{int((time.time() - t_start) / 60)} min, {(time.time() - t_start) % 60}s")
 if mode_switch[1] == 1:
     print("单点模型测试")
 
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")
 
-    training_data_input_xy = torch.from_numpy(training_data_input_xy[:, :, 1:data_size]).to(torch.float32).to(device)
-    training_data_input_lane = torch.from_numpy(training_data_input_lane).to(torch.float32).to(device)
-    training_data_input_white_line = torch.from_numpy(training_data_input_white_line).to(torch.float32).to(device)
-    training_data_output = torch.from_numpy(training_data_output).to(torch.float32).to(device)
+    all_loss = np.zeros([1])
+    if check_source_switch == 0:
+        batch_size = testing_data_input_xy.shape[0] * batch_ratio
+    else:
+        batch_size = training_data_input_xy.shape[0] * batch_ratio
+    for each_batch in range(int(1 / batch_ratio)):
+        torch.cuda.empty_cache()
+        index_start = int(each_batch * batch_size)
+        index_end = int((each_batch + 1) * batch_size)
+        if check_source_switch == 0:
+            check_input_xy = testing_data_input_xy[index_start:index_end, :, :][:, :, 1:data_size]
+            check_input_white_line = testing_data_input_white_line[index_start:index_end, :, :]
+            check_input_lane = testing_data_input_lane[index_start:index_end, :, :]
+            check_output = testing_data_output[index_start:index_end, 0:1, :]
+        else:
+            check_input_xy = training_data_input_xy[index_start:index_end, :, :][:, :, 1:data_size]
+            check_input_white_line = training_data_input_white_line[index_start:index_end, :, :]
+            check_input_lane = training_data_input_lane[index_start:index_end, :, :]
+            check_output = training_data_output[index_start:index_end, 0:1, :]
 
-    check_input_xy = training_data_input_xy
-    check_input_white_line = training_data_input_white_line
-    check_input_lane = training_data_input_lane
-    check_output = training_data_output
+        check_input_xy = torch.from_numpy(check_input_xy).to(torch.float32).to(device)
+        check_input_white_line = torch.from_numpy(check_input_white_line).to(torch.float32).to(device)
+        check_input_lane = torch.from_numpy(check_input_lane).to(torch.float32).to(device)
+        check_output = torch.from_numpy(check_output).to(torch.float32).to(device)
 
-    encoded, (h_encoded, c_encoded) = encoder(check_input_xy)
-    if vector_map_switch == 1:
-        encoded = torch.cat([encoded, check_input_lane], 2)
-    decoded, _ = decoder(encoded, h_encoded, c_encoded)
-    loss = criterion(decoded, check_output[:, 0, :].unsqueeze(1)) * check_output.shape[0]
-    print(loss.item())
+        encoded, (h_encoded, c_encoded) = encoder(check_input_xy)
+        if vector_map_switch == 1:
+            encoded = torch.cat([encoded, check_input_lane], 2)
+        decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
 
-    for i in range(check_output.shape[0]):
-        plt.plot(np.append(check_output.cpu().detach().numpy()[i, 0, 0],
-                           decoded.cpu().detach().numpy()[i, :, 0]),
-                 np.append(check_output.cpu().detach().numpy()[i, 0, 1],
-                           decoded.cpu().detach().numpy()[i, :, 1]))
-    plt.show()
+        for i in range(check_output.shape[0]):
+            loss = criterion(decoded[i], check_output[i])
+            all_loss[-1] = loss.item()
+            all_loss = np.append(all_loss, [0.0], axis=0)
+        all_loss = np.delete(all_loss, [-1], 0)
+        plt.clf()
+        plt.title("Single Point Prediction Testing Data", fontsize=15)
+        plt.plot(all_loss, label="Loss")
+        plt.text(all_loss.shape[0] / 2, all_loss.max() * 1.01,
+                 f"Max:{all_loss.max():.5f}", fontsize=10)
+        plt.plot([0, all_loss.shape[0]],
+                 [all_loss.max(), all_loss.max()],
+                 "r--", label="Max")
+        plt.text(all_loss.shape[0] / 2, all_loss.mean() * 2,
+                 f"Mean:{all_loss.mean():.5f}", fontsize=10)
+        plt.plot([0, all_loss.shape[0]],
+                 [all_loss.mean(), all_loss.mean()],
+                 "k:", label="Mean")
+        plt.legend(loc='upper right')
+        plt.pause(0.01)
+    plt.savefig("../result/10/single.png")
+    print("--------------")
+    print(f"当前程序运行时间为：{int((time.time() - t_start) / 60)} min, {(time.time() - t_start) % 60}s")
 if mode_switch[2] == 1:
     print("进行连接模型训练")
     encoder = torch.load("end_encoder.pth")
@@ -336,9 +368,9 @@ if mode_switch[2] == 1:
         learning_rate = learning_rate_init * points
         optimizer_decoder = optim.Adam(decoder.parameters(), lr=(learning_rate / 10))
         optimizer_connector = optim.Adam(connector.parameters(), lr=learning_rate)
-        scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=int(min(max_epoch / 10, 30)), gamma=0.7,
+        scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=int(min(max_epoch / 10, 10)), gamma=0.7,
                                              last_epoch=-1)
-        scheduler_connector = scheduler.StepLR(optimizer_connector, step_size=int(min(max_epoch / 10, 30)), gamma=0.7,
+        scheduler_connector = scheduler.StepLR(optimizer_connector, step_size=int(min(max_epoch / 10, 10)), gamma=0.7,
                                                last_epoch=-1)
 
         all_loss = np.zeros([1])
@@ -421,25 +453,31 @@ if mode_switch[2] == 1:
             plt.clf()
 
             plt.subplot(3, 1, 1)
-            plt.plot(all_loss)
-            plt.text(epoch / 2, (all_loss[:].max() + all_loss[:].min()) / 2,
-                     f"point:{points + 1}, lr:{learning_rate:.10f}, all_loss:{all_loss[-1]}", fontsize=10)
+            plt.title("Trajectory Prediction Training Data", fontsize=15)
+            plt.plot(all_loss, label="Loss")
+            plt.plot([0.0, epoch], [0.0, 0.0], "k--", label="Reference")
+            plt.text(epoch, all_loss[:].mean(),
+                     f"Point:{points + 1}, lr:{learning_rate * 1e4:.3f}*10^-4, Loss:{all_loss[-1]:.5f}",
+                     horizontalalignment="right", fontsize=10)
+            plt.legend(loc='upper right')
 
             plt.subplot(3, 1, 2)
-            plt.plot(all_grad_abs[:, 0])
-            plt.plot([0.0, epoch], [0.0, 0.0], "r--")
-            plt.text(epoch / 2, (all_grad_abs[:, 0].max() + all_grad_abs[:, 0].min()) / 2,
-                     f"point:{points + 1}, grad_max:{all_grad_abs[-1, 0]}", fontsize=10)
+            plt.plot(all_grad_abs[:, 0], label="Grad")
+            plt.plot([0.0, epoch], [0.0, 0.0], "k--", label="Reference")
+            plt.text(epoch, abs(all_grad_abs[-1, 0] * 1.01),
+                     f"Point:{points + 1}, Grad:{all_grad_abs[-1, 0]:.5f}", horizontalalignment="right", fontsize=10)
+            plt.legend(loc='upper right')
 
             plt.subplot(3, 1, 3)
-            plt.plot(all_grad_abs[:, 1])
-            plt.plot([0.0, epoch], [0.0, 0.0], "r--")
-            plt.text(epoch / 2, (all_grad_abs[:, 1].max() + all_grad_abs[:, 1].min()) / 2,
-                     f"point:{points + 1}, grad_max:{all_grad_abs[-1, 1]}", fontsize=10)
+            plt.plot(all_grad_abs[:, 1], label="Grad")
+            plt.plot([0.0, epoch], [0.0, 0.0], "k--", label="Reference")
+            plt.text(epoch, abs(all_grad_abs[-1, 1] * 1.5),
+                     f"Point:{points + 1}, Grad:{all_grad_abs[-1, 1] * 1e7:.5f}*10^-7", horizontalalignment="right", fontsize=10)
+            plt.legend(loc='upper right')
 
             plt.pause(0.01)
 
-            if epoch >= 10 and judge_end(all_grad_abs[-1, 1], all_grad_abs[-1, 0], all_loss[-1]):
+            if epoch >= 10 and judge_end(points+1, all_grad_abs[-1, 1], all_grad_abs[-1, 0], all_loss[-1]):
                 print(f"points:{points + 1},epoch:{epoch + 1},loss:{all_loss[-1]}")
                 break
 
@@ -463,6 +501,8 @@ if mode_switch[2] == 1:
         torch.save(decoder, "end_decoder.pth")
         torch.save(connector, "end_connector.pth")
     plt.clf()
+    print("--------------")
+    print(f"当前程序运行时间为：{int((time.time() - t_start) / 60)} min, {(time.time() - t_start) % 60}s")
 if mode_switch[3] == 1:
     print("循环预测模型测试")
     encoder = torch.load("end_encoder.pth")
@@ -476,7 +516,7 @@ if mode_switch[3] == 1:
         batch_size = training_data_input_xy.shape[0] * batch_ratio
     for each_batch in range(int(1 / batch_ratio)):
         torch.cuda.empty_cache()
-
+        print(f"batch:{each_batch + 1}/{int(1 / batch_ratio)}")
         index_start = int(each_batch * batch_size)
         index_end = int((each_batch + 1) * batch_size)
         if check_source_switch == 0:
@@ -515,52 +555,68 @@ if mode_switch[3] == 1:
             all_loss = np.append(all_loss, [0.0], axis=0)
 
         for i in range(0, check_output.shape[0]):
-            if all_loss[(index_start + i)] >= 1:
+            if all_loss[(index_start + i)] >= 1.0:
                 fig.savefig("../result/10/" + str(each_batch) + "_" + str(i) + ".png")
             plt.clf()
             plt.subplot(1, 2, 1)
+            plt.title("Trajectories", fontsize=15)
             lim = row * size_row + 1
             plt.xlim(-lim / 2, lim / 2)
-            plt.ylim(0, lim)
-            plt.plot(check_input_xy.cpu().detach().numpy()[i, :, 0], check_input_xy.cpu().detach().numpy()[i, :, 1])
-            plt.plot(check_output.cpu().detach().numpy()[i, :, 0], check_output.cpu().detach().numpy()[i, :, 1])
-            plt.plot(output.cpu().detach().numpy()[i, :, 0], output.cpu().detach().numpy()[i, :, 1], "*")
+            plt.ylim(-lim + 2, lim)
 
             for r in range(row):
                 plt.plot([index_box[r, 0, 0], index_box[r, -1, 1]],
-                         [index_box[r, 0, 2], index_box[r, -1, 2]], "g--")
+                         [index_box[r, 0, 2], index_box[r, -1, 2]], "y-")
                 plt.plot([index_box[r, 0, 0], index_box[r, -1, 1]],
-                         [index_box[r, 0, 3], index_box[r, -1, 3]], "g--")
+                         [index_box[r, 0, 3], index_box[r, -1, 3]], "y-")
             for c in range(column):
                 plt.plot([index_box[0, c, 0], index_box[-1, c, 0]],
-                         [index_box[0, c, 2], index_box[-1, c, 3]], "g--")
+                         [index_box[0, c, 2], index_box[-1, c, 3]], "y-")
                 plt.plot([index_box[0, c, 1], index_box[-1, c, 1]],
-                         [index_box[0, c, 2], index_box[-1, c, 3]], "g--")
+                         [index_box[0, c, 2], index_box[-1, c, 3]], "y-")
+            plt.plot([index_box[0, 0, 0], index_box[0, -1, 1]],
+                     [index_box[0, 0, 2], index_box[0, -1, 2]], "y-", label="Grid Map")
 
+            flag = True
             for r in range(row):
                 for c in range(column):
                     if check_input_lane[i, -1, r * row + c] == 1.0:
-                        plt.plot((index_box[r, c, 0] + index_box[r, c, 1]) / 2,
-                                 (index_box[r, c, 2] + index_box[r, c, 3]) / 2,
-                                 's', color="b")
+                        if flag:
+                            plt.plot((index_box[r, c, 0] + index_box[r, c, 1]) / 2,
+                                     (index_box[r, c, 2] + index_box[r, c, 3]) / 2,
+                                     's', color="b", label="Occupied")
+                            flag = False
+                        else:
+                            plt.plot((index_box[r, c, 0] + index_box[r, c, 1]) / 2,
+                                     (index_box[r, c, 2] + index_box[r, c, 3]) / 2,
+                                     's', color="b")
+
+            plt.plot(check_input_xy.cpu().detach().numpy()[i, :, 0],
+                     check_input_xy.cpu().detach().numpy()[i, :, 1], "-", color="k", label="Input")
+            plt.plot(output.cpu().detach().numpy()[i, :, 0],
+                     output.cpu().detach().numpy()[i, :, 1], ".", color="r", label="Output")
+            plt.plot(check_output.cpu().detach().numpy()[i, :, 0],
+                     check_output.cpu().detach().numpy()[i, :, 1], "--", color="k", label="Reference")
+            plt.legend(loc='upper right')
 
             plt.subplot(1, 2, 2)
-            plt.plot(all_loss[0:(index_start + i + 1)])
-            plt.text((index_start + i + 1) / 2,
-                     (all_loss[0:(index_start + i + 1)].max() + all_loss[0:(index_start + i + 1)].min()) / 2,
-                     f"batch_num = {each_batch}", fontsize=10)
-            plt.plot([0, index_start + i],
-                     [all_loss[0:(index_start + i + 1)].mean(), all_loss[0:(index_start + i + 1)].mean()],
-                     "r--")
-            plt.text((index_start + i) / 2, all_loss[0:(index_start + i + 1)].mean(),
-                     str(all_loss[0:(index_start + i + 1)].mean()), fontsize=10)
+            plt.title("Loss", fontsize=15)
+            plt.plot(all_loss[0:(index_start + i + 1)], label="Loss")
             plt.plot([0, index_start + i],
                      [all_loss[0:(index_start + i + 1)].max(), all_loss[0:(index_start + i + 1)].max()],
-                     "r--")
-            plt.text((index_start + i) / 2, all_loss[0:(index_start + i + 1)].max(),
-                     str(all_loss[0:(index_start + i + 1)].max()), fontsize=10)
+                     "r--", label="Max")
+            plt.text((index_start + i) / 2, all_loss[0:(index_start + i + 1)].max() * 1.001,
+                     f"Max:{all_loss[0:(index_start + i + 1)].max():.5f}", fontsize=10)
+            plt.plot([0, index_start + i],
+                     [all_loss[0:(index_start + i + 1)].mean(), all_loss[0:(index_start + i + 1)].mean()],
+                     "k:", label="Mean")
+            plt.text((index_start + i) / 2, all_loss[0:(index_start + i + 1)].mean() * 1.001,
+                     f"Mean:{all_loss[0:(index_start + i + 1)].mean():.5f}", fontsize=10)
+            plt.legend(loc='upper right')
+
             plt.pause(0.01)
-    fig.savefig("../result/10/end.png")
+        fig.savefig("../result/10/all.png")
+        print(f"当前程序运行时间为：{int((time.time() - t_start) / 60)} min, {(time.time() - t_start) % 60}s")
 if mode_switch[4] == 1:
     print("全局地图测试")
     encoder = torch.load("end_encoder.pth")
@@ -640,4 +696,4 @@ if mode_switch[4] == 1:
                          data_reshape[i, -1, -1], fontsize=10)
                 fig.savefig("../result/10/car_id" + str(data_reshape[i, -1, -1]) + ".png")
                 plt.clf()
-print(f"本次程序运行时间为：{int((time.time() - t_start) / 60)} min, {(time.time() - t_start) % 60}s")
+    print(f"当前程序运行时间为：{int((time.time() - t_start) / 60)} min, {(time.time() - t_start) % 60}s")

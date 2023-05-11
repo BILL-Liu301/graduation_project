@@ -4,6 +4,18 @@ import os
 import sys
 import matplotlib.pyplot as plt
 
+
+# 查找宫格范围
+def find_index(x, y):
+    for r in range(row):
+        if index_box[r, 0, 2] <= y <= index_box[r, 0, 3]:
+            for c in range(column):
+                if index_box[0, c, 0] <= x <= index_box[0, c, 1]:
+                    return True, r, c
+            return False, 0.0, 0.0
+    return False, 0.0, 0.0
+
+
 white_line = np.load("white_line.npy")
 lane = np.load("lane.npy")
 
@@ -62,6 +74,7 @@ train_size = int(0.5 * data_reshape.shape[0])
 test_size = data_reshape.shape[0] - train_size
 
 if True:
+    print("正在读取已保存的数据")
     training_data_input_xy = np.load("train_test/training_data_input_xy.npy")
     training_data_input_white_line = np.load("train_test/training_data_input_white_line.npy")
     training_data_input_lane = np.load("train_test/training_data_input_lane.npy")
@@ -75,6 +88,8 @@ if True:
     index_box = np.load("train_test/index_box.npy")
     theda_train = np.load("train_test/theda_train.npy")
     theda_test = np.load("train_test/theda_test.npy")
+
+    print("准备进入main...")
 else:
     training_data_input_xy = np.array(data_reshape[0:train_size, 0:input_size, :])
     training_data_output = np.array(data_reshape[0:train_size, input_size:data_reshape.shape[1], :])
@@ -217,18 +232,6 @@ else:
             index_box[i, j, 2] = i * size_row
             index_box[i, j, 3] = (i + 1) * size_row
 
-
-    # 查找宫格范围
-    def find_index(x, y):
-        for r in range(row):
-            if index_box[r, 0, 2] <= y <= index_box[r, 0, 3]:
-                for c in range(column):
-                    if index_box[0, c, 0] <= x <= index_box[0, c, 1]:
-                        return True, r, c
-                return False, 0.0, 0.0
-        return False, 0.0, 0.0
-
-
     print("正在对training data input/output进行车道线和边界线栅格化...")
     input_white_line = training_data_input_white_line
     input_lane = training_data_input_lane
@@ -365,19 +368,14 @@ else:
     # plt.figure()
     # for i in range(training_data_input_xy.shape[0]):
     #     plt.subplot(1, 2, 1)
-    #     plt.title("All Datas")
+    #     plt.title("Datas", fontsize=15)
     #     lim = row * size_row + 1
     #     plt.xlim(-lim / 2, lim / 2)
     #     plt.ylim(-lim + 2, lim)
-    #     plt.plot(training_data_input_xy[i, :, 1], training_data_input_xy[i, :, 2], "--", color="r", label="Input")
-    #     plt.plot(training_data_output[i, :, 0], training_data_output[i, :, 1], "--", color="g", label="Output")
     #     plt.plot(white_line_show[i, :, 0], white_line_show[i, :, 1], "*", color="k", label="White Line")
     #     plt.plot(lane_show[i, :, 0], lane_show[i, :, 1], "o", color="k", label="Lane")
     #     plt.plot([index_box[0, 0, 0], index_box[0, -1, 1]],
-    #              [index_box[0, 0, 2], index_box[0, -1, 2]], label="Grid Map")
-    #     plt.legend(loc='upper right')
-    #     plt.plot(100, 100,
-    #              's', color="b", label="Occupied")
+    #              [index_box[0, 0, 2], index_box[0, -1, 2]], "y-", label="Grid Map")
     #     for r in range(row):
     #         plt.plot([index_box[r, 0, 0], index_box[r, -1, 1]],
     #                  [index_box[r, 0, 2], index_box[r, -1, 2]], "y-")
@@ -388,17 +386,27 @@ else:
     #                  [index_box[0, c, 2], index_box[-1, c, 3]], "y-")
     #         plt.plot([index_box[0, c, 1], index_box[-1, c, 1]],
     #                  [index_box[0, c, 2], index_box[-1, c, 3]], "y-")
+    #
+    #     flag = True
     #     for r in range(row):
     #         for c in range(column):
     #             if training_data_input_lane[i, -1, r * row + c] == 1.0:
-    #                 plt.plot((index_box[r, c, 0] + index_box[r, c, 1]) / 2,
-    #                          (index_box[r, c, 2] + index_box[r, c, 3]) / 2,
-    #                          's', color="b")
+    #                 if flag:
+    #                     plt.plot((index_box[r, c, 0] + index_box[r, c, 1]) / 2,
+    #                              (index_box[r, c, 2] + index_box[r, c, 3]) / 2,
+    #                              's', color="b", label="Occupied")
+    #                     flag = False
+    #                 else:
+    #                     plt.plot((index_box[r, c, 0] + index_box[r, c, 1]) / 2,
+    #                              (index_box[r, c, 2] + index_box[r, c, 3]) / 2,
+    #                              's', color="b")
+    #     plt.plot(training_data_input_xy[i, :, 1], training_data_input_xy[i, :, 2], "-", color="k", label="Input")
+    #     plt.plot(training_data_output[i, :, 0], training_data_output[i, :, 1], "--", color="k", label="Output")
+    #     plt.legend(loc='upper right')
     #
     #     plt.subplot(1, 2, 2)
-    #     plt.title("OGM-Lane")
+    #     plt.title("OGM_Lane", fontsize=15)
     #     plt.imshow(np.flip(training_data_input_lane[i, -1, :].reshape(row, column), axis=0))
-    #     plt.savefig("E:\OneDrive - mail.scut.edu.cn\桌面\图片集\\" + str(i))
+    #     plt.savefig("figs/" + str(i))
     #     plt.pause(0.1)
     #     plt.clf()
-
