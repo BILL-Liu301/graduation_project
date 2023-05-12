@@ -26,7 +26,7 @@ data_size = 6
 seq_size = 50
 jump_size = int(seq_size / 25)
 split_size = 15
-remove_ratio = 0.1
+remove_ratio = 0.2
 
 row = 15
 column = 15  # 必须为奇数
