@@ -47,7 +47,7 @@ print(f'testing_data_input_lane: {testing_data_input_lane.shape}')
 print(f'testing_data_output: {testing_data_output.shape}')
 
 # 模式选取
-mode_switch = np.array([1, 1, 1, 1, 0])
+mode_switch = np.array([0, 0, 0, 0, 1])
 vector_map_switch = 1
 check_source_switch = 0
 
@@ -616,84 +616,43 @@ if mode_switch[3] == 1:
 
             plt.pause(0.01)
         fig.savefig("../result/10/all.png")
-        print(f"当前程序运行时间为：{int((time.time() - t_start) / 60)} min, {(time.time() - t_start) % 60}s")
+        np.save("all_loss.npy", all_loss)
+    plt.clf()
+    print("--------------")
+    print(f"当前程序运行时间为：{int((time.time() - t_start) / 60)} min, {(time.time() - t_start) % 60}s")
 if mode_switch[4] == 1:
-    print("全局地图测试")
-    encoder = torch.load("end_encoder.pth")
-    decoder = torch.load("end_decoder.pth")
-    connector = torch.load("end_connector.pth")
+    print("分析偏差")
+    all_loss = np.load("all_loss.npy")
+    print(all_loss.shape)
+    num = 17
+    loss_area = np.linspace(0, 4, num=num)
+    loss_num = np.zeros([num-1, 1])
 
-    batch_ratio = batch_ratio / 10
-    check_input_xy_np = np.append(training_data_input_xy, testing_data_input_xy, axis=0)
-    check_input_white_line_np = np.append(training_data_input_white_line, testing_data_input_white_line, axis=0)
-    check_input_lane_np = np.append(training_data_input_lane, testing_data_input_lane, axis=0)
-    check_output_np = np.append(training_data_output, testing_data_output, axis=0)
-    check_theda_np = np.append(theda_train, theda_test, axis=0)
+    for i in range(all_loss.shape[0]):
+        for j in range(num-1):
+            if loss_area[j] <= all_loss[i] < loss_area[j + 1]:
+                loss_num[j] = loss_num[j] + 1
+                break
 
-    batch_size = check_input_xy_np.shape[0] * batch_ratio
-    for each_batch in range(int(1 / batch_ratio)):
-        torch.cuda.empty_cache()
+    loss_num_rate = loss_num / loss_num.sum()
 
-        index_start = int(each_batch * batch_size)
-        index_end = int((each_batch + 1) * batch_size)
+    plt.title("Probability Distributions", fontsize=15)
+    x = np.zeros([num-1])
+    y = np.zeros([num-1])
+    for i in range(num-1):
+        x[i] = (loss_area[i] + loss_area[i + 1]) / 2
+        y[i] = loss_num_rate[i, 0]
+        if i == 0:
+            plt.bar(x[i], y[i],
+                    color="c", edgecolor='k', width=(loss_area[i + 1] - loss_area[i]), label="Proportion")
+        else:
+            plt.bar(x[i], y[i],
+                    color="c", edgecolor='k', width=(loss_area[i+1] - loss_area[i]))
+        plt.text(x[i], y[i], int(loss_num[i, 0]),
+                 horizontalalignment='center', verticalalignment='bottom', fontsize=10)
+    plt.plot(x, y, "r", label="Trend")
+    plt.legend(loc='upper right')
+    plt.pause(2)
+    fig.savefig("../result/10/distributions.png")
 
-        check_input_xy = check_input_xy_np[index_start:index_end, :, :]
-        check_input_white_line = check_input_white_line_np[index_start:index_end, :, :]
-        check_input_lane = check_input_lane_np[index_start:index_end, :, :]
-        check_output = check_output_np[index_start:index_end, :, :]
-        check_theda = check_theda_np[index_start:index_end, :, :]
-
-        check_input_xy = torch.from_numpy(check_input_xy).to(torch.float32).to(device)
-        check_input_white_line = torch.from_numpy(check_input_white_line).to(torch.float32).to(device)
-        check_input_lane = torch.from_numpy(check_input_lane).to(torch.float32).to(device)
-        check_output = torch.from_numpy(check_output).to(torch.float32).to(device)
-
-        encoded, (h_encoded, c_encoded) = encoder(check_input_xy[:, :, 1:data_size])
-        if vector_map_switch == 1:
-            encoded = torch.cat([encoded, check_input_lane], 2)
-        decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
-        output = decoded.clone()
-
-        for i in range(check_output.shape[1] - 1):
-            connected = connector(decoded)
-            encoded, h_encoded, c_encoded = connected, h_decoded, c_decoded
-            if vector_map_switch == 1:
-                encoded = torch.cat([encoded, check_input_lane], 2)
-            decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
-            output = torch.cat((output.clone(), decoded.clone()), 1)
-
-        for i in range(0, check_output.shape[0]):
-            for j in range(output.shape[1]):
-                theda = check_theda[i, -1, -1]
-                index_xy = check_input_xy[i, -1, 0].cpu().detach().numpy()
-                index_car = check_input_xy[i, -1, -1].cpu().detach().numpy()
-                xy_temp = data_reshape[data_reshape[:, input_size - 1, 0] == index_xy, input_size - 1, :]
-
-                x_temp = output.cpu().detach().numpy()[i, j, 0]
-                y_temp = output.cpu().detach().numpy()[i, j, 1]
-                output[i, j, 0] = x_temp * math.cos(theda) - y_temp * math.sin(theda)
-                output[i, j, 1] = x_temp * math.sin(theda) + y_temp * math.cos(theda)
-                output[i, j, 0] = output[i, j, 0] + torch.tensor(xy_temp[xy_temp[:, -1] == index_car, 1]).to(device)
-                output[i, j, 1] = output[i, j, 1] + torch.tensor(xy_temp[xy_temp[:, -1] == index_car, 2]).to(device)
-
-                x_temp = check_input_xy.cpu().detach().numpy()[i, j, 1]
-                y_temp = check_input_xy.cpu().detach().numpy()[i, j, 2]
-                check_input_xy[i, j, 1] = x_temp * math.cos(theda) - y_temp * math.sin(theda)
-                check_input_xy[i, j, 2] = x_temp * math.sin(theda) + y_temp * math.cos(theda)
-                check_input_xy[i, j, 1] = check_input_xy[i, j, 1] + torch.tensor(
-                    xy_temp[xy_temp[:, -1] == index_car, 1]).to(device)
-                check_input_xy[i, j, 2] = check_input_xy[i, j, 2] + torch.tensor(
-                    xy_temp[xy_temp[:, -1] == index_car, 2]).to(device)
-
-            plt.plot(output.cpu().detach().numpy()[i, :, 0], output.cpu().detach().numpy()[i, :, 1], "*")
-            # plt.plot(check_input_xy.cpu().detach().numpy()[i, :, 1], check_input_xy.cpu().detach().numpy()[i, :, 2])
-            plt.plot(data_reshape[i + index_start, :, 1], data_reshape[i + index_start, :, 2])
-            print(f"batch:{each_batch}, i:{i},car id:{data_reshape[i, -1, -1]}")
-            plt.pause(0.1)
-            if data_reshape[i + 1, -1, -1] != data_reshape[i, -1, -1]:
-                plt.text(data_reshape[i, :, 1].mean() + 1,
-                         data_reshape[i, :, 2].mean() + 1,
-                         data_reshape[i, -1, -1], fontsize=10)
-                fig.savefig("../result/10/car_id" + str(data_reshape[i, -1, -1]) + ".png")
-                plt.clf()
     print(f"当前程序运行时间为：{int((time.time() - t_start) / 60)} min, {(time.time() - t_start) % 60}s")
