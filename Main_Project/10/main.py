@@ -53,7 +53,7 @@ vector_map_switch = 1
 check_source_switch = 0
 
 # 定义基本参数
-size_basic = 64
+size_basic = 128
 size_encoder_fc_input = data_size - 1  # 去除索引
 size_encoder_fc_middle = size_basic
 size_encoder_fc_output = size_basic
@@ -640,7 +640,7 @@ if mode_switch[4] == 1:
     print("分析偏差")
     all_loss = np.load("all_loss.npy")
     print(all_loss.shape)
-    num = 17
+    num = 41
     loss_area = np.linspace(0, 4, num=num)
     loss_num = np.zeros([num - 1, 1])
 
@@ -664,11 +664,14 @@ if mode_switch[4] == 1:
         else:
             plt.bar(x[i], y[i],
                     color="c", edgecolor='k', width=(loss_area[i + 1] - loss_area[i]))
+
         plt.text(x[i], y[i], int(loss_num[i, 0]),
+                 horizontalalignment='center', verticalalignment='bottom', fontsize=10)
+        plt.text(x[i], y[i] + 0.01, f"{loss_num_rate[i, 0] * 100: .1f}%",
                  horizontalalignment='center', verticalalignment='bottom', fontsize=10)
     plt.plot(x, y, "r", label="Trend")
     plt.legend(loc='upper right')
-    plt.pause(2)
+    plt.pause(5)
     fig.savefig("../result/10/distributions.png")
 
     print(f"当前程序运行时间为：{int((time.time() - t_start) / 60)} min, {(time.time() - t_start) % 60}s")
