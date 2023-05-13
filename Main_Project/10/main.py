@@ -1,5 +1,6 @@
 import time
 import math
+import random
 import numpy as np
 import torch
 import torch.nn as nn
@@ -74,6 +75,9 @@ learning_rate_init = 1e-3
 learning_rate = learning_rate_init
 max_epoch = 200
 batch_ratio = 0.2
+next_point_limit = math.pow(0.15, 2)
+next_point_flag_init = 10
+next_point_flag = next_point_flag_init
 
 
 # 定义编码器
@@ -215,16 +219,21 @@ connector = Connector(size_connector_fc_input, size_connector_fc_middle, size_co
 optimizer_encoder = optim.Adam(encoder.parameters(), lr=learning_rate)
 optimizer_decoder = optim.Adam(decoder.parameters(), lr=learning_rate)
 optimizer_connector = optim.Adam(connector.parameters(), lr=learning_rate)
-criterion = nn.MSELoss()
+criterion = nn.MSELoss(reduction='mean')
 
 
 # 停止判定
-def judge_end(point_num, grad_min, grad_max, loss_item):
-    ref = math.sqrt(point_num)
-    # print(loss_item < 2, abs(grad_max) <= 2, abs(grad_min) <= 0.0001)
-    if loss_item < ref and abs(grad_max) <= ref and abs(grad_min) <= 0.001:
-        return True
-    return False
+def judge_end(loss_item, next_point):
+    if loss_item <= next_point_limit:
+        next_point = next_point - 1
+        if next_point == 0:
+            next_point = next_point_flag_init
+            return True, next_point
+        else:
+            return False, next_point
+    else:
+        next_point = next_point_flag_init
+        return False, next_point
 
 
 # 主要部分
@@ -241,13 +250,15 @@ if mode_switch[0] == 1:
     all_loss = np.zeros([1])
     for epoch in range(int(max_epoch / 2)):
 
-        batch_size = training_data_input_xy.shape[0] * batch_ratio
+        batch_size = int(training_data_input_xy.shape[0] * batch_ratio)
         for each_batch in range(int(1 / batch_ratio)):
-            print(f"epoch:{epoch + 1}/{max_epoch / 50}, "
+            print(f"mode: 单点模型训练, "
+                  f"epoch:{epoch + 1}/{int(max_epoch / 2)}, "
                   f"batch:{each_batch + 1}/{int(1 / batch_ratio)}, "
+                  f"batch_size:{batch_size}, "
                   f"loss:{all_loss[-1]:.5f}")
-            index_start = int(each_batch * batch_size)
-            index_end = int((each_batch + 1) * batch_size)
+            index_start = each_batch * batch_size
+            index_end = (each_batch + 1) * batch_size
             train_input_xy = training_data_input_xy[index_start:index_end, :, :][:, :, 1:data_size]
             train_input_white_line = training_data_input_white_line[index_start:index_end, :, :]
             train_input_lane = training_data_input_lane[index_start:index_end, :, :]
@@ -296,7 +307,7 @@ if mode_switch[0] == 1:
 
     torch.save(encoder, "end_encoder.pth")
     torch.save(decoder, "end_decoder.pth")
-    fig.savefig("figs/" + "single.png")
+    fig.savefig("figs/" + "single_train.png")
     plt.clf()
     print("--------------")
     print(f"当前程序运行时间为：{int((time.time() - t_start) / 60)} min, {(time.time() - t_start) % 60}s")
@@ -308,13 +319,13 @@ if mode_switch[1] == 1:
 
     all_loss = np.zeros([1])
     if check_source_switch == 0:
-        batch_size = testing_data_input_xy.shape[0] * batch_ratio
+        batch_size = int(testing_data_input_xy.shape[0] * batch_ratio)
     else:
-        batch_size = training_data_input_xy.shape[0] * batch_ratio
+        batch_size = int(training_data_input_xy.shape[0] * batch_ratio)
     for each_batch in range(int(1 / batch_ratio)):
         torch.cuda.empty_cache()
-        index_start = int(each_batch * batch_size)
-        index_end = int((each_batch + 1) * batch_size)
+        index_start = each_batch * batch_size
+        index_end = (each_batch + 1) * batch_size
         if check_source_switch == 0:
             check_input_xy = testing_data_input_xy[index_start:index_end, :, :][:, :, 1:data_size]
             check_input_white_line = testing_data_input_white_line[index_start:index_end, :, :]
@@ -356,7 +367,7 @@ if mode_switch[1] == 1:
                  "k:", label="Mean")
         plt.legend(loc='upper right')
         plt.pause(0.01)
-    plt.savefig("../result/10/single.png")
+    plt.savefig("figs/" + "single_test.png")
     print("--------------")
     print(f"当前程序运行时间为：{int((time.time() - t_start) / 60)} min, {(time.time() - t_start) % 60}s")
 if mode_switch[2] == 1:
@@ -365,7 +376,7 @@ if mode_switch[2] == 1:
     decoder = torch.load("end_decoder.pth")
 
     for points in range(1, training_data_output.shape[1], 1):
-        learning_rate = learning_rate_init * points
+        learning_rate = learning_rate_init * points / 10
         optimizer_decoder = optim.Adam(decoder.parameters(), lr=(learning_rate / 10))
         optimizer_connector = optim.Adam(connector.parameters(), lr=learning_rate)
         scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=int(min(max_epoch / 10, 10)), gamma=0.7,
@@ -376,15 +387,17 @@ if mode_switch[2] == 1:
         all_loss = np.zeros([1])
         all_grad_abs = np.array([[0.0, 10]])
         for epoch in range(max_epoch):
-            batch_size = training_data_input_xy.shape[0] * batch_ratio
+            batch_size = int(training_data_input_xy.shape[0] * batch_ratio)
             for each_batch in range(int(1 / batch_ratio)):
-                print(f"epoch:{epoch + 1}/{max_epoch}, "
+                print(f"mode: 连接模型训练, "
+                      f"epoch:{epoch + 1}/{max_epoch}, "
                       f"points:{points + 1}/{training_data_output.shape[1]}, "
                       f"batch:{each_batch + 1}/{int(1 / batch_ratio)}, "
+                      f"batch_size:{batch_size}, "
                       f"loss:{all_loss[-1]:.5f}")
                 torch.cuda.empty_cache()
-                index_start = int(each_batch * batch_size)
-                index_end = int((each_batch + 1) * batch_size)
+                index_start = each_batch * batch_size
+                index_end = (each_batch + 1) * batch_size
                 train_input_xy = training_data_input_xy[index_start:index_end, :, :][:, :, 1:data_size]
                 train_input_white_line = training_data_input_white_line[index_start:index_end, :, :]
                 train_input_lane = training_data_input_lane[index_start:index_end, :, :]
@@ -408,7 +421,7 @@ if mode_switch[2] == 1:
                     decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
                     decoded_clone = torch.cat((decoded_clone.clone(), decoded.clone()), 1)
 
-                loss = criterion(decoded_clone, train_output[:, 0:(points + 1), :]) * decoded_clone.shape[0]
+                loss = criterion(decoded_clone, train_output[:, 0:(points + 1), :])
                 all_loss[epoch] = loss.item()
 
                 optimizer_connector.zero_grad()
@@ -451,11 +464,10 @@ if mode_switch[2] == 1:
                     all_grad_abs[-1, 1] = temp
 
             plt.clf()
-
             plt.subplot(3, 1, 1)
             plt.title("Trajectory Prediction Training Data", fontsize=15)
             plt.plot(all_loss, label="Loss")
-            plt.plot([0.0, epoch], [0.0, 0.0], "k--", label="Reference")
+            plt.plot([0.0, epoch], [next_point_limit, next_point_limit], "k--", label="Reference")
             plt.text(epoch, all_loss[:].mean(),
                      f"Point:{points + 1}, lr:{learning_rate * 1e4:.3f}*10^-4, Loss:{all_loss[-1]:.5f}",
                      horizontalalignment="right", fontsize=10)
@@ -463,21 +475,23 @@ if mode_switch[2] == 1:
 
             plt.subplot(3, 1, 2)
             plt.plot(all_grad_abs[:, 0], label="Grad")
-            plt.plot([0.0, epoch], [0.0, 0.0], "k--", label="Reference")
+            plt.plot([0.0, epoch], [0.0, 0.0], "k--", label="Zero")
             plt.text(epoch, abs(all_grad_abs[-1, 0] * 1.01),
                      f"Point:{points + 1}, Grad:{all_grad_abs[-1, 0]:.5f}", horizontalalignment="right", fontsize=10)
             plt.legend(loc='upper right')
 
             plt.subplot(3, 1, 3)
             plt.plot(all_grad_abs[:, 1], label="Grad")
-            plt.plot([0.0, epoch], [0.0, 0.0], "k--", label="Reference")
+            plt.plot([0.0, epoch], [0.0, 0.0], "k--", label="Zero")
             plt.text(epoch, abs(all_grad_abs[-1, 1] * 1.5),
-                     f"Point:{points + 1}, Grad:{all_grad_abs[-1, 1] * 1e7:.5f}*10^-7", horizontalalignment="right", fontsize=10)
+                     f"Point:{points + 1}, Grad:{all_grad_abs[-1, 1] * 1e7:.5f}*10^-7", horizontalalignment="right",
+                     fontsize=10)
             plt.legend(loc='upper right')
 
             plt.pause(0.01)
 
-            if epoch >= 10 and judge_end(points+1, all_grad_abs[-1, 1], all_grad_abs[-1, 0], all_loss[-1]):
+            next_point_or_not, next_point_flag = judge_end(all_loss[-1], next_point_flag)
+            if epoch >= 10 and next_point_or_not:
                 print(f"points:{points + 1},epoch:{epoch + 1},loss:{all_loss[-1]}")
                 break
 
@@ -504,21 +518,23 @@ if mode_switch[2] == 1:
     print("--------------")
     print(f"当前程序运行时间为：{int((time.time() - t_start) / 60)} min, {(time.time() - t_start) % 60}s")
 if mode_switch[3] == 1:
-    print("循环预测模型测试")
+    print("进行循环预测模型测试")
     encoder = torch.load("end_encoder.pth")
     decoder = torch.load("end_decoder.pth")
     connector = torch.load("end_connector.pth")
 
     all_loss = np.zeros([1])
     if check_source_switch == 0:
-        batch_size = testing_data_input_xy.shape[0] * batch_ratio
+        batch_size = int(testing_data_input_xy.shape[0] * batch_ratio)
     else:
-        batch_size = training_data_input_xy.shape[0] * batch_ratio
+        batch_size = int(training_data_input_xy.shape[0] * batch_ratio)
     for each_batch in range(int(1 / batch_ratio)):
         torch.cuda.empty_cache()
-        print(f"batch:{each_batch + 1}/{int(1 / batch_ratio)}")
-        index_start = int(each_batch * batch_size)
-        index_end = int((each_batch + 1) * batch_size)
+        print(f"mode: 循环预测模型测试, "
+              f"batch:{each_batch + 1}/{int(1 / batch_ratio)}, "
+              f"batch_size:{batch_size}")
+        index_start = each_batch * batch_size
+        index_end = (each_batch + 1) * batch_size
         if check_source_switch == 0:
             check_input_xy = testing_data_input_xy[index_start:index_end, :, :][:, :, 1:data_size]
             check_input_white_line = testing_data_input_white_line[index_start:index_end, :, :]
@@ -556,7 +572,7 @@ if mode_switch[3] == 1:
 
         for i in range(0, check_output.shape[0]):
             if all_loss[(index_start + i)] >= 1.0:
-                fig.savefig("../result/10/" + str(each_batch) + "_" + str(i) + ".png")
+                fig.savefig("../result/10/" + str(each_batch) + "_" + str(i) + "_" + str(index_start + i) + ".png")
             plt.clf()
             plt.subplot(1, 2, 1)
             plt.title("Trajectories", fontsize=15)
@@ -626,10 +642,10 @@ if mode_switch[4] == 1:
     print(all_loss.shape)
     num = 17
     loss_area = np.linspace(0, 4, num=num)
-    loss_num = np.zeros([num-1, 1])
+    loss_num = np.zeros([num - 1, 1])
 
     for i in range(all_loss.shape[0]):
-        for j in range(num-1):
+        for j in range(num - 1):
             if loss_area[j] <= all_loss[i] < loss_area[j + 1]:
                 loss_num[j] = loss_num[j] + 1
                 break
@@ -637,9 +653,9 @@ if mode_switch[4] == 1:
     loss_num_rate = loss_num / loss_num.sum()
 
     plt.title("Probability Distributions", fontsize=15)
-    x = np.zeros([num-1])
-    y = np.zeros([num-1])
-    for i in range(num-1):
+    x = np.zeros([num - 1])
+    y = np.zeros([num - 1])
+    for i in range(num - 1):
         x[i] = (loss_area[i] + loss_area[i + 1]) / 2
         y[i] = loss_num_rate[i, 0]
         if i == 0:
@@ -647,7 +663,7 @@ if mode_switch[4] == 1:
                     color="c", edgecolor='k', width=(loss_area[i + 1] - loss_area[i]), label="Proportion")
         else:
             plt.bar(x[i], y[i],
-                    color="c", edgecolor='k', width=(loss_area[i+1] - loss_area[i]))
+                    color="c", edgecolor='k', width=(loss_area[i + 1] - loss_area[i]))
         plt.text(x[i], y[i], int(loss_num[i, 0]),
                  horizontalalignment='center', verticalalignment='bottom', fontsize=10)
     plt.plot(x, y, "r", label="Trend")
