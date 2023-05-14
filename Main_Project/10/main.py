@@ -75,7 +75,7 @@ learning_rate_init = 1e-3
 learning_rate = learning_rate_init
 max_epoch = 200
 batch_ratio = 0.2
-next_point_limit = math.pow(0.15, 2)
+next_point_limit = math.pow(0.2, 2)
 next_point_flag_init = 10
 next_point_flag = next_point_flag_init
 
@@ -641,7 +641,7 @@ if mode_switch[4] == 1:
     all_loss = np.load("all_loss.npy")
     print(all_loss.shape)
     num = 41
-    loss_area = np.linspace(0, 4, num=num)
+    loss_area = np.linspace(0, 2, num=num)
     loss_num = np.zeros([num - 1, 1])
 
     for i in range(all_loss.shape[0]):
