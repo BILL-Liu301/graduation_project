@@ -48,7 +48,7 @@ print(f'testing_data_input_lane: {testing_data_input_lane.shape}')
 print(f'testing_data_output: {testing_data_output.shape}')
 
 # 模式选取
-mode_switch = np.array([0, 0, 0, 0, 1])
+mode_switch = np.array([0, 0, 0, 1, 1])
 vector_map_switch = 1
 check_source_switch = 0
 
@@ -571,7 +571,7 @@ if mode_switch[3] == 1:
             all_loss = np.append(all_loss, [0.0], axis=0)
 
         for i in range(0, check_output.shape[0]):
-            if all_loss[(index_start + i)] >= 1.0:
+            if all_loss[(index_start + i)] >= 0.8:
                 fig.savefig("../result/10/" + str(each_batch) + "_" + str(i) + "_" + str(index_start + i) + ".png")
             plt.clf()
             plt.subplot(1, 2, 1)
