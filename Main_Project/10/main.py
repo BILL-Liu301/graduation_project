@@ -48,7 +48,7 @@ print(f'testing_data_input_lane: {testing_data_input_lane.shape}')
 print(f'testing_data_output: {testing_data_output.shape}')
 
 # 模式选取
-mode_switch = np.array([1, 1, 1, 1, 1])
+mode_switch = np.array([0, 0, 0, 0, 1])
 vector_map_switch = 1
 check_source_switch = 0
 
@@ -639,9 +639,9 @@ if mode_switch[3] == 1:
 if mode_switch[4] == 1:
     print("分析偏差")
     all_loss = np.load("all_loss.npy")
-    print(all_loss.shape)
-    num = 41
-    loss_area = np.linspace(0, 2, num=num)
+    print("loss max:", all_loss.max())
+    num = 31
+    loss_area = np.linspace(0, 1.5, num=num)
     loss_num = np.zeros([num - 1, 1])
 
     for i in range(all_loss.shape[0]):
