@@ -16,12 +16,6 @@ def find_index(x, y):
     return False, 0.0, 0.0
 
 
-white_line = np.load("white_line.npy")
-lane = np.load("lane.npy")
-
-white_line[:, 2] = -1.0 * white_line[:, 2]
-lane[:, 2] = -1.0 * lane[:, 2]
-
 data_size = 6
 seq_size = 50
 jump_size = int(seq_size / 25)
@@ -60,13 +54,12 @@ size_colum = 1  # 列宽
 #             data_reshape = np.r_[data_reshape, data_reshape_temp]
 #             print(index, str(file), data_reshape.shape)
 #             print("--------")
-# np.save("data_reshape.npy", data_reshape)
+# np.save("train_test/data_reshape.npy", data_reshape)
+# data_reshape = np.delete(data_reshape, [0], 0)
+# data_reshape = np.array(data_reshape.reshape(-1, seq_size, 7))
 
-data_reshape = np.load("data_reshape.npy")
-data_reshape = np.delete(data_reshape, [0], 0)
-data_reshape = np.array(data_reshape.reshape(-1, seq_size, 7))
+data_reshape = np.load("train_test/data_reshape.npy")
 # data_reshape = data_reshape[0:1000, :, :]
-print(data_reshape.shape)
 
 input_size = int(0.6 * seq_size)
 output_size = seq_size - input_size
@@ -88,6 +81,8 @@ if True:
     index_box = np.load("train_test/index_box.npy")
     theda_train = np.load("train_test/theda_train.npy")
     theda_test = np.load("train_test/theda_test.npy")
+    white_line = np.load("train_test/white_line.npy")
+    lane = np.load("train_test/lane.npy")
 
     # plt.figure()
     # for i in range(0, training_data_input_xy.shape[0], 100):
@@ -136,6 +131,9 @@ if True:
 
     print("准备进入main...")
 else:
+    white_line = np.load("white_line.npy")
+    lane = np.load("lane.npy")
+
     training_data_input_xy = np.array(data_reshape[0:train_size, 0:input_size, :])
     training_data_output = np.array(data_reshape[0:train_size, input_size:data_reshape.shape[1], :])
 
@@ -282,7 +280,7 @@ else:
     input_white_line = training_data_input_white_line
     input_lane = training_data_input_lane
     white_line_show = np.zeros([training_data_input_xy.shape[0], white_line.shape[0], 2])
-    lane_show = np.zeros([training_data_input_xy.shape[0], 107, 2])
+    lane_show = np.zeros([training_data_input_xy.shape[0], 117, 2])
     # plt.figure()
     for i in range(training_data_input_xy.shape[0]):
         theda = data_reshape[i, (input_size - 1), 5] * math.pi / 180
@@ -407,6 +405,8 @@ else:
     np.save("train_test/index_box.npy", index_box)
     np.save("train_test/theda_train.npy", theda_train)
     np.save("train_test/theda_test.npy", theda_test)
+    np.save("train_test/white_line.npy", white_line)
+    np.save("train_test/lane.npy", lane)
 
     print("准备进入main...")
 

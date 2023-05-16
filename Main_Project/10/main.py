@@ -5,9 +5,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from util import training_data_input_xy, training_data_input_white_line, training_data_input_lane
-from util import testing_data_input_xy, testing_data_input_white_line, testing_data_input_lane
-from util import training_data_output, testing_data_output, index_box, data_reshape
+from util import training_data_input_xy, training_data_input_white_line, training_data_input_lane, training_data_output
+from util import testing_data_input_xy, testing_data_input_white_line, testing_data_input_lane, testing_data_output
+from util import white_line, lane, index_box, data_reshape
 from util import data_size, input_size, row, column, size_row, theda_train, theda_test
 import matplotlib.pyplot as plt
 import torch.optim.lr_scheduler as scheduler
@@ -48,7 +48,14 @@ print(f'testing_data_input_lane: {testing_data_input_lane.shape}')
 print(f'testing_data_output: {testing_data_output.shape}')
 
 # 模式选取
-mode_switch = np.array([0, 0, 0, 1, 1, 1])
+mode_switch = np.array([1,  # 单点模型训练
+                        1,  # 单点模型测试
+                        1,  # 连接模型训练——逐点累加
+                        0,  # 连接模型训练——直接训练
+                        1,  # 循环预测模型测试
+                        1,  # 分析偏差
+                        0   # 全局轨迹抽查
+                        ])
 vector_map_switch = 1
 check_source_switch = 0
 
@@ -389,7 +396,7 @@ if mode_switch[2] == 1:
         for epoch in range(max_epoch):
             batch_size = int(training_data_input_xy.shape[0] * batch_ratio)
             for each_batch in range(int(1 / batch_ratio)):
-                print(f"mode: 连接模型训练, "
+                print(f"mode: 进行连接模型训练——逐点累加, "
                       f"epoch:{epoch + 1}/{max_epoch}, "
                       f"points:{points + 1}/{training_data_output.shape[1]}, "
                       f"batch:{each_batch + 1}/{int(1 / batch_ratio)}, "
@@ -498,9 +505,10 @@ if mode_switch[2] == 1:
             all_loss = np.append(all_loss, [0.0], axis=0)
             all_grad_abs = np.append(all_grad_abs, np.array([[0.0, 10]]), axis=0)
 
-            scheduler_decoder.step()
-            scheduler_connector.step()
-            learning_rate = scheduler_connector.get_last_lr()[0]
+            if learning_rate >= 1e-8:
+                scheduler_decoder.step()
+                scheduler_connector.step()
+                learning_rate = scheduler_connector.get_last_lr()[0]
 
             rand_para = torch.randperm(training_data_input_xy.shape[0])
             training_data_input_xy = training_data_input_xy[rand_para]
@@ -647,9 +655,10 @@ if mode_switch[3] == 1:
         all_loss = np.append(all_loss, [0.0], axis=0)
         all_grad_abs = np.append(all_grad_abs, np.array([[0.0, 10]]), axis=0)
 
-        scheduler_decoder.step()
-        scheduler_connector.step()
-        learning_rate = scheduler_connector.get_last_lr()[0]
+        if learning_rate >= 1e-8:
+            scheduler_decoder.step()
+            scheduler_connector.step()
+            learning_rate = scheduler_connector.get_last_lr()[0]
 
         rand_para = torch.randperm(training_data_input_xy.shape[0])
         training_data_input_xy = training_data_input_xy[rand_para]
@@ -781,16 +790,17 @@ if mode_switch[4] == 1:
 
             plt.pause(0.01)
         fig.savefig("figs/all.png")
-        np.save("all_loss.npy", all_loss)
+        np.save("train_test/all_loss.npy", all_loss)
     plt.clf()
     print("--------------")
     print(f"当前程序运行时间为：{int((time.time() - t_start) / 60)} min, {(time.time() - t_start) % 60}s")
 if mode_switch[5] == 1:
     print("分析偏差")
-    all_loss = np.load("all_loss.npy")
+    all_loss = np.load("train_test/all_loss.npy")
     print("loss max:", all_loss.max())
-    num = 31
-    loss_area = np.linspace(0, 1.5, num=num)
+    loss_max = math.ceil(all_loss.max())
+    num = int(loss_max / 0.05 + 1)
+    loss_area = np.linspace(0, loss_max, num=num)
     loss_num = np.zeros([num - 1, 1])
 
     for i in range(all_loss.shape[0]):
@@ -820,7 +830,36 @@ if mode_switch[5] == 1:
                  horizontalalignment='center', verticalalignment='bottom', fontsize=10)
     plt.plot(x, y, "r", label="Trend")
     plt.legend(loc='upper right')
-    plt.pause(5)
+    plt.pause(1)
     fig.savefig("figs/distributions.png")
 
     print(f"当前程序运行时间为：{int((time.time() - t_start) / 60)} min, {(time.time() - t_start) % 60}s")
+if mode_switch[6] == 1:
+    print("进行全局轨迹抽查")
+    encoder = torch.load("end_encoder_origin.pth")
+    decoder = torch.load("end_decoder.pth")
+    connector = torch.load("end_connector.pth")
+
+    start = 650 + training_data_input_xy.shape[0]
+    num = 2
+    end = start + num * 300
+    num = num + 1
+    start_end = np.linspace(start, end, num=num)
+    print(start_end)
+    start_end = np.array(start_end, dtype='int')
+
+    plt.plot(white_line[:, 1], white_line[:, 2], '*')
+    plt.plot(lane[lane[:, 5] == 1, 1], lane[lane[:, 5] == 1, 2], 'o')
+
+    for index, i in enumerate(start_end):
+        x_temp = data_reshape[i, testing_data_input_xy.shape[1] - 1, 1]
+        y_temp = data_reshape[i, testing_data_input_xy.shape[1] - 1, 2]
+        print(x_temp, y_temp)
+        plt.plot(data_reshape[i, testing_data_input_xy.shape[1]:, 1],
+                 data_reshape[i, testing_data_input_xy.shape[1]:, 2])
+        plt.text(data_reshape[i, testing_data_input_xy.shape[1], 1],
+                 data_reshape[i, testing_data_input_xy.shape[1], 2],
+                 index)
+        plt.plot()
+
+    plt.show()
