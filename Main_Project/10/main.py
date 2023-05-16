@@ -48,7 +48,7 @@ print(f'testing_data_input_lane: {testing_data_input_lane.shape}')
 print(f'testing_data_output: {testing_data_output.shape}')
 
 # 模式选取
-mode_switch = np.array([0, 0, 0, 1, 1])
+mode_switch = np.array([0, 0, 0, 1, 1, 1])
 vector_map_switch = 1
 check_source_switch = 0
 
@@ -305,8 +305,8 @@ if mode_switch[0] == 1:
         training_data_input_lane = training_data_input_lane[rand_para]
         training_data_output = training_data_output[rand_para]
 
-    torch.save(encoder, "end_encoder.pth")
-    torch.save(decoder, "end_decoder.pth")
+    torch.save(encoder, "end_encoder_origin.pth")
+    torch.save(decoder, "end_decoder_origin.pth")
     fig.savefig("figs/" + "single_train.png")
     plt.clf()
     print("--------------")
@@ -314,8 +314,8 @@ if mode_switch[0] == 1:
 if mode_switch[1] == 1:
     print("单点模型测试")
 
-    encoder = torch.load("end_encoder.pth")
-    decoder = torch.load("end_decoder.pth")
+    encoder = torch.load("end_encoder_origin.pth")
+    decoder = torch.load("end_decoder_origin.pth")
 
     all_loss = np.zeros([1])
     if check_source_switch == 0:
@@ -371,9 +371,9 @@ if mode_switch[1] == 1:
     print("--------------")
     print(f"当前程序运行时间为：{int((time.time() - t_start) / 60)} min, {(time.time() - t_start) % 60}s")
 if mode_switch[2] == 1:
-    print("进行连接模型训练")
-    encoder = torch.load("end_encoder.pth")
-    decoder = torch.load("end_decoder.pth")
+    print("进行连接模型训练——逐点累加")
+    encoder = torch.load("end_encoder_origin.pth")
+    decoder = torch.load("end_decoder_origin.pth")
 
     for points in range(1, training_data_output.shape[1], 1):
         learning_rate = learning_rate_init * points / 10
@@ -518,8 +518,157 @@ if mode_switch[2] == 1:
     print("--------------")
     print(f"当前程序运行时间为：{int((time.time() - t_start) / 60)} min, {(time.time() - t_start) % 60}s")
 if mode_switch[3] == 1:
+    print("进行连接模型训练——直接训练")
+    encoder = torch.load("end_encoder_origin.pth")
+    decoder = torch.load("end_decoder_origin.pth")
+
+    points = training_data_output.shape[1] - 1
+    max_epoch = max_epoch * points
+
+    learning_rate = learning_rate_init * points / 10
+    optimizer_decoder = optim.Adam(decoder.parameters(), lr=(learning_rate / 10))
+    optimizer_connector = optim.Adam(connector.parameters(), lr=learning_rate)
+    scheduler_decoder = scheduler.StepLR(optimizer_decoder, step_size=int(min(max_epoch / 10, 10)), gamma=0.7,
+                                         last_epoch=-1)
+    scheduler_connector = scheduler.StepLR(optimizer_connector, step_size=int(min(max_epoch / 10, 10)), gamma=0.7,
+                                           last_epoch=-1)
+
+    all_loss = np.zeros([1])
+    all_grad_abs = np.array([[0.0, 10]])
+    for epoch in range(max_epoch):
+        batch_size = int(training_data_input_xy.shape[0] * batch_ratio)
+        for each_batch in range(int(1 / batch_ratio)):
+            print(f"mode: 连接模型训练, "
+                  f"epoch:{epoch + 1}/{max_epoch}, "
+                  f"points:{points + 1}/{training_data_output.shape[1]}, "
+                  f"batch:{each_batch + 1}/{int(1 / batch_ratio)}, "
+                  f"batch_size:{batch_size}, "
+                  f"loss:{all_loss[-1]:.5f}")
+            torch.cuda.empty_cache()
+            index_start = each_batch * batch_size
+            index_end = (each_batch + 1) * batch_size
+            train_input_xy = training_data_input_xy[index_start:index_end, :, :][:, :, 1:data_size]
+            train_input_white_line = training_data_input_white_line[index_start:index_end, :, :]
+            train_input_lane = training_data_input_lane[index_start:index_end, :, :]
+            train_output = training_data_output[index_start:index_end, :, :]
+
+            train_input_xy = torch.from_numpy(train_input_xy).to(torch.float32).to(device)
+            train_input_white_line = torch.from_numpy(train_input_white_line).to(torch.float32).to(device)
+            train_input_lane = torch.from_numpy(train_input_lane).to(torch.float32).to(device)
+            train_output = torch.from_numpy(train_output).to(torch.float32).to(device)
+
+            encoded, (h_encoded, c_encoded) = encoder(train_input_xy)
+            if vector_map_switch == 1:
+                encoded = torch.cat([encoded, train_input_lane], 2)
+            decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
+            decoded_clone = decoded.clone()
+            for point in range(points):
+                connected = connector(decoded)
+                encoded, h_encoded, c_encoded = connected, h_decoded, c_decoded
+                if vector_map_switch == 1:
+                    encoded = torch.cat([encoded, train_input_lane], 2)
+                decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
+                decoded_clone = torch.cat((decoded_clone.clone(), decoded.clone()), 1)
+
+            loss = criterion(decoded_clone, train_output[:, 0:(points + 1), :])
+            all_loss[epoch] = loss.item()
+
+            optimizer_connector.zero_grad()
+            optimizer_decoder.zero_grad()
+            loss.backward()
+            optimizer_connector.step()
+            optimizer_decoder.step()
+
+        for name, param in decoder.named_parameters():
+            if param.grad is None:
+                continue
+            if abs(param.grad.cpu().numpy().max()) >= all_grad_abs[-1, 0]:
+                all_grad_abs[-1, 0] = param.grad.cpu().numpy().max()
+
+            if abs(param.grad.cpu().numpy().min()) >= all_grad_abs[-1, 0]:
+                all_grad_abs[-1, 0] = param.grad.cpu().numpy().min()
+
+            temp = param.grad.cpu().numpy()
+            temp = temp[np.nonzero(temp)]
+            temp = temp[np.abs(temp).argmin()]
+            if abs(all_grad_abs[-1, 1]) >= abs(temp):
+                all_grad_abs[-1, 1] = temp
+
+        for name, param in connector.named_parameters():
+            if param.grad is None:
+                continue
+            if abs(param.grad.cpu().numpy().max()) >= all_grad_abs[-1, 0]:
+                all_grad_abs[-1, 0] = param.grad.cpu().numpy().max()
+
+            if abs(param.grad.cpu().numpy().min()) >= all_grad_abs[-1, 0]:
+                all_grad_abs[-1, 0] = param.grad.cpu().numpy().min()
+
+            temp = param.grad.cpu().numpy()
+            temp = temp[np.nonzero(temp)]
+            if temp.shape[0] == 0.0:
+                temp = 0.0
+            else:
+                temp = temp[np.abs(temp).argmin()]
+            if abs(all_grad_abs[-1, 1]) >= abs(temp):
+                all_grad_abs[-1, 1] = temp
+
+        plt.clf()
+        plt.subplot(3, 1, 1)
+        plt.title("Trajectory Prediction Training Data", fontsize=15)
+        plt.plot(all_loss, label="Loss")
+        plt.plot([0.0, epoch], [next_point_limit, next_point_limit], "k--", label="Reference")
+        plt.text(epoch, all_loss[:].mean(),
+                 f"Point:{points + 1}, lr:{learning_rate * 1e4:.3f}*10^-4, Loss:{all_loss[-1]:.5f}",
+                 horizontalalignment="right", fontsize=10)
+        plt.legend(loc='upper right')
+
+        plt.subplot(3, 1, 2)
+        plt.plot(all_grad_abs[:, 0], label="Grad")
+        plt.plot([0.0, epoch], [0.0, 0.0], "k--", label="Zero")
+        plt.text(epoch, abs(all_grad_abs[-1, 0] * 1.01),
+                 f"Point:{points + 1}, Grad:{all_grad_abs[-1, 0]:.5f}", horizontalalignment="right", fontsize=10)
+        plt.legend(loc='upper right')
+
+        plt.subplot(3, 1, 3)
+        plt.plot(all_grad_abs[:, 1], label="Grad")
+        plt.plot([0.0, epoch], [0.0, 0.0], "k--", label="Zero")
+        plt.text(epoch, abs(all_grad_abs[-1, 1] * 1.5),
+                 f"Point:{points + 1}, Grad:{all_grad_abs[-1, 1] * 1e7:.5f}*10^-7", horizontalalignment="right",
+                 fontsize=10)
+        plt.legend(loc='upper right')
+
+        plt.pause(0.01)
+
+        next_point_or_not, next_point_flag = judge_end(all_loss[-1], next_point_flag)
+        if epoch >= 10 and next_point_or_not:
+            print(f"points:{points + 1},epoch:{epoch + 1},loss:{all_loss[-1]}")
+            break
+
+        all_loss = np.append(all_loss, [0.0], axis=0)
+        all_grad_abs = np.append(all_grad_abs, np.array([[0.0, 10]]), axis=0)
+
+        scheduler_decoder.step()
+        scheduler_connector.step()
+        learning_rate = scheduler_connector.get_last_lr()[0]
+
+        rand_para = torch.randperm(training_data_input_xy.shape[0])
+        training_data_input_xy = training_data_input_xy[rand_para]
+        training_data_input_white_line = training_data_input_white_line[rand_para]
+        training_data_input_lane = training_data_input_lane[rand_para]
+        training_data_output = training_data_output[rand_para]
+
+    fig.savefig("figs/" + str(points + 1) + ".png")
+    print(f"points:{points + 1},loss:{all_loss[-2]}")
+    print("------------------------------------")
+
+    torch.save(decoder, "end_decoder.pth")
+    torch.save(connector, "end_connector.pth")
+    plt.clf()
+    print("--------------")
+    print(f"当前程序运行时间为：{int((time.time() - t_start) / 60)} min, {(time.time() - t_start) % 60}s")
+if mode_switch[4] == 1:
     print("进行循环预测模型测试")
-    encoder = torch.load("end_encoder.pth")
+    encoder = torch.load("end_encoder_origin.pth")
     decoder = torch.load("end_decoder.pth")
     connector = torch.load("end_connector.pth")
 
@@ -572,7 +721,7 @@ if mode_switch[3] == 1:
 
         for i in range(0, check_output.shape[0]):
             if all_loss[(index_start + i)] >= 0.8:
-                fig.savefig("../result/10/" + str(each_batch) + "_" + str(i) + "_" + str(index_start + i) + ".png")
+                fig.savefig("figs/" + str(each_batch) + "_" + str(i) + "_" + str(index_start + i) + ".png")
             plt.clf()
             plt.subplot(1, 2, 1)
             plt.title("Trajectories", fontsize=15)
@@ -631,12 +780,12 @@ if mode_switch[3] == 1:
             plt.legend(loc='upper right')
 
             plt.pause(0.01)
-        fig.savefig("../result/10/all.png")
+        fig.savefig("figs/all.png")
         np.save("all_loss.npy", all_loss)
     plt.clf()
     print("--------------")
     print(f"当前程序运行时间为：{int((time.time() - t_start) / 60)} min, {(time.time() - t_start) % 60}s")
-if mode_switch[4] == 1:
+if mode_switch[5] == 1:
     print("分析偏差")
     all_loss = np.load("all_loss.npy")
     print("loss max:", all_loss.max())
@@ -672,6 +821,6 @@ if mode_switch[4] == 1:
     plt.plot(x, y, "r", label="Trend")
     plt.legend(loc='upper right')
     plt.pause(5)
-    fig.savefig("../result/10/distributions.png")
+    fig.savefig("figs/distributions.png")
 
     print(f"当前程序运行时间为：{int((time.time() - t_start) / 60)} min, {(time.time() - t_start) % 60}s")

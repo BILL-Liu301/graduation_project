@@ -89,6 +89,51 @@ if True:
     theda_train = np.load("train_test/theda_train.npy")
     theda_test = np.load("train_test/theda_test.npy")
 
+    # plt.figure()
+    # for i in range(0, training_data_input_xy.shape[0], 100):
+    #     lim = 18
+    #     plt.subplot(1, 2, 1)
+    #     plt.xlim(-lim, lim)
+    #     plt.ylim(-lim, lim)
+    #     plt.title("Trajectory", fontsize=15)
+    #     plt.plot(training_data_input_xy[i, :, 1], training_data_input_xy[i, :, 2], "o", color="r", label="Input")
+    #     plt.plot(training_data_output[i, :, 0], training_data_output[i, :, 1], "o", color="b", label="Output")
+    #     plt.legend(loc='upper right')
+    #
+    #     plt.subplot(1, 2, 2)
+    #     plt.title("Datas", fontsize=15)
+    #     plt.plot([index_box[0, 0, 0], index_box[0, -1, 1]],
+    #              [index_box[0, 0, 2], index_box[0, -1, 2]], "y-", label="Grid Map")
+    #     for r in range(row):
+    #         plt.plot([index_box[r, 0, 0], index_box[r, -1, 1]],
+    #                  [index_box[r, 0, 2], index_box[r, -1, 2]], "y-")
+    #         plt.plot([index_box[r, 0, 0], index_box[r, -1, 1]],
+    #                  [index_box[r, 0, 3], index_box[r, -1, 3]], "y-")
+    #     for c in range(column):
+    #         plt.plot([index_box[0, c, 0], index_box[-1, c, 0]],
+    #                  [index_box[0, c, 2], index_box[-1, c, 3]], "y-")
+    #         plt.plot([index_box[0, c, 1], index_box[-1, c, 1]],
+    #                  [index_box[0, c, 2], index_box[-1, c, 3]], "y-")
+    #
+    #     flag = True
+    #     for r in range(row):
+    #         for c in range(column):
+    #             if training_data_input_lane[i, -1, r * row + c] == 1.0:
+    #                 if flag:
+    #                     plt.plot((index_box[r, c, 0] + index_box[r, c, 1]) / 2,
+    #                              (index_box[r, c, 2] + index_box[r, c, 3]) / 2,
+    #                              's', color="b", label="Occupied")
+    #                     flag = False
+    #                 else:
+    #                     plt.plot((index_box[r, c, 0] + index_box[r, c, 1]) / 2,
+    #                              (index_box[r, c, 2] + index_box[r, c, 3]) / 2,
+    #                              's', color="b")
+    #     plt.plot(training_data_input_xy[i, :, 1], training_data_input_xy[i, :, 2], "-", color="k", label="Input")
+    #     plt.plot(training_data_output[i, :, 0], training_data_output[i, :, 1], "--", color="k", label="Output")
+    #     plt.legend(loc='upper right')
+    #     plt.show()
+    #     plt.clf()
+
     print("准备进入main...")
 else:
     training_data_input_xy = np.array(data_reshape[0:train_size, 0:input_size, :])
@@ -191,12 +236,13 @@ else:
             testing_data_output[i, j, 5] = testing_data_output[i, j, 5] - testing_data_input_xy[i, -1, 5]
 
     # plt.figure()
-    # for i in range(training_data_input_xy.shape[0]):
-    #     lim = 15
+    # for i in range(0, training_data_input_xy.shape[0], 100):
+    #     lim = 18
     #     plt.xlim(-lim, lim)
     #     plt.ylim(-lim, lim)
-    #     plt.plot(training_data_input_xy[i, :, 1], training_data_input_xy[i, :, 2], "*", color="r")
-    #     plt.plot(training_data_output[i, :, 1], training_data_output[i, :, 2], "*", color="b")
+    #     plt.title("Trajectory")
+    #     plt.plot(training_data_input_xy[i, :, 1], training_data_input_xy[i, :, 2], "o", color="r", label="Input")
+    #     plt.plot(training_data_output[i, :, 1], training_data_output[i, :, 2], "o", color="b", label="Output")
     #     plt.pause(0.01)
     #     plt.clf()
 
