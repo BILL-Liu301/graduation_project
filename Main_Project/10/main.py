@@ -54,7 +54,7 @@ mode_switch = np.array([1,  # 单点模型训练
                         0,  # 连接模型训练——直接训练
                         1,  # 循环预测模型测试
                         1,  # 分析偏差
-                        0   # 全局轨迹抽查
+                        0  # 全局轨迹抽查
                         ])
 vector_map_switch = 1
 check_source_switch = 0
@@ -840,26 +840,73 @@ if mode_switch[6] == 1:
     decoder = torch.load("end_decoder.pth")
     connector = torch.load("end_connector.pth")
 
-    start = 650 + training_data_input_xy.shape[0]
+    index_s = training_data_input_xy.shape[0]
+    start = 2000 + training_data_input_xy.shape[0]
     num = 2
-    end = start + num * 300
+    end = start + num * 280
     num = num + 1
     start_end = np.linspace(start, end, num=num)
     print(start_end)
     start_end = np.array(start_end, dtype='int')
 
-    plt.plot(white_line[:, 1], white_line[:, 2], '*')
-    plt.plot(lane[lane[:, 5] == 1, 1], lane[lane[:, 5] == 1, 2], 'o')
-
-    for index, i in enumerate(start_end):
-        x_temp = data_reshape[i, testing_data_input_xy.shape[1] - 1, 1]
-        y_temp = data_reshape[i, testing_data_input_xy.shape[1] - 1, 2]
-        print(x_temp, y_temp)
-        plt.plot(data_reshape[i, testing_data_input_xy.shape[1]:, 1],
-                 data_reshape[i, testing_data_input_xy.shape[1]:, 2])
+    plt.xlim(-5, 20)
+    plt.ylim(-30, 5)
+    for index_, i in enumerate(start_end):
+        plt.title("Samples", fontsize=15)
+        plt.plot(lane[lane[:, 5] == 1, 1], lane[lane[:, 5] == 1, 2], 'k-', label='Lane')
+        plt.plot(data_reshape[i, :testing_data_input_xy.shape[1], 1],
+                 data_reshape[i, :testing_data_input_xy.shape[1], 2], "b-", label='Input')
         plt.text(data_reshape[i, testing_data_input_xy.shape[1], 1],
                  data_reshape[i, testing_data_input_xy.shape[1], 2],
-                 index)
-        plt.plot()
-
+                 index_, horizontalalignment='left', verticalalignment='top', fontsize=10)
+        if index_ == 0:
+            plt.legend(loc='upper right')
     plt.show()
+    plt.clf()
+
+    for index_, i in enumerate(start_end):
+        center_x = data_reshape[i, testing_data_input_xy.shape[1] - 1, 1]
+        center_y = data_reshape[i, testing_data_input_xy.shape[1] - 1, 2]
+        plt.title("Samples:" + str(index_), fontsize=15)
+        plt.xlim(center_x - 10, center_x + 10)
+        plt.ylim(center_y - 10, center_y + 10)
+        test_input_xy = torch.from_numpy(testing_data_input_xy[i - index_s:i - index_s + 1, :][:, :, 1:data_size]).to(
+            torch.float32).to(device)
+        test_input_lane = torch.from_numpy(testing_data_input_lane[i - index_s:i - index_s + 1, :]).to(
+            torch.float32).to(device)
+        test_output = torch.from_numpy(testing_data_output[i - index_s:i - index_s + 1, :]).to(torch.float32).to(device)
+
+        encoded, (h_encoded, c_encoded) = encoder(test_input_xy)
+        if vector_map_switch == 1:
+            encoded = torch.cat([encoded, test_input_lane], 2)
+        decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
+        decoded_clone = decoded.clone()
+        for point in range(testing_data_output.shape[1] - 1):
+            connected = connector(decoded)
+            encoded, h_encoded, c_encoded = connected, h_decoded, c_decoded
+            if vector_map_switch == 1:
+                encoded = torch.cat([encoded, test_input_lane], 2)
+            decoded, (h_decoded, c_decoded) = decoder(encoded, h_encoded, c_encoded)
+            decoded_clone = torch.cat((decoded_clone.clone(), decoded.clone()), 1)
+
+        decoded_clone = decoded_clone.cpu().detach().numpy()
+        for j in range(decoded_clone.shape[1]):
+            theda = theda_test[i - index_s]
+            x_temp = decoded_clone[0, j, 0]
+            y_temp = decoded_clone[0, j, 1]
+            decoded_clone[0, j, 0] = x_temp * math.cos(theda) - y_temp * math.sin(theda)
+            decoded_clone[0, j, 1] = x_temp * math.sin(theda) + y_temp * math.cos(theda)
+            decoded_clone[0, j, 0] = decoded_clone[0, j, 0] + data_reshape[i, testing_data_input_xy.shape[1], 1]
+            decoded_clone[0, j, 1] = decoded_clone[0, j, 1] + data_reshape[i, testing_data_input_xy.shape[1], 2]
+
+        plt.plot(lane[lane[:, 5] == 1, 1], lane[lane[:, 5] == 1, 2], 'k-', label='Lane')
+        plt.plot(data_reshape[i, :testing_data_input_xy.shape[1], 1],
+                 data_reshape[i, :testing_data_input_xy.shape[1], 2], "b-", label='Input')
+        plt.plot(data_reshape[i, testing_data_input_xy.shape[1]:, 1],
+                 data_reshape[i, testing_data_input_xy.shape[1]:, 2], "b--", label='Reference')
+        plt.plot(decoded_clone[0, :, 0], decoded_clone[0, :, 1], 'r.', label='Output')
+        if index_ == 0:
+            plt.legend(loc='upper right')
+        plt.show()
+        plt.clf()
+
